@@ -1,6 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from time import sleep
 import re
@@ -35,23 +35,134 @@ books = {
 	'2John': 24,
 	'3John': 25,
 	'Jude': 26,
-	'Rev': 27
+	'Rev': 27,
+    'Matthew': 1,
+	'Mark': 2,
+	'Luke': 3,
+	'John': 4,
+	'Acts': 5,
+	'Romans': 6,
+	'1st Corinthians': 7,
+	'2nd Corinthians': 8,
+	'Galatians': 9,
+	'Ephesians': 10,
+	'Philippians': 11,
+	'Colossians': 12,
+	'1st Thessalonians': 13,
+	'2nd Thessalonians': 14,
+	'1st Timothy': 15,
+	'2nd Timothy': 16,
+	'Titus': 17,
+	'Philemon': 18,
+	'Hebrews': 19,
+	'James': 20,
+	'1st Peter': 21,
+	'2nd Peter': 22,
+	'1st John': 23,
+	'2nd John': 24,
+	'3rd John': 25,
+	'Jude': 26,
+	'Revelation': 27,
 }
 
 def main():
     driver = webdriver.Chrome()
-    dup_dict = dict()
-    get_mss(driver, 1, 10001, 10141, dup_dict)
-    get_mss(driver, 2, 20001, 20324, dup_dict)
-    get_mss(driver, 3, 30001, 33018, dup_dict)
-    get_mss(driver, 4, 40001, 42551, dup_dict)
-    get_mss(driver, 5, 510001, 520030, dup_dict)
+    dup_dict = {'forward': dict(), 'backward': dict()}
+    all_mss = dict()
+    # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
+    # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
+    # get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
+    # get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
+    # get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
+    get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
     # ID 90056 (T789) appears to be a talisman containing John 11
-    # Save dictionary of duplicates
+    # Save dictionaries
     with open(f'dup_dict.pkl','wb') as f:
         pickle.dump(dup_dict, f)
+    with open('all_mss.pkl','wb') as f:
+        pickle.dump(all_mss, f)
 
-def get_mss(driver, type, lower_bound, upper_bound, dup_dict):
+def get_cntr_mss(driver, dup_dict, all_mss, start_cl, stop_cl):
+    driver.get("https://greekcntr.org/manuscripts/index.htm")
+    for i in range(start_cl, stop_cl+1):
+        cntr_class(i, driver, dup_dict, all_mss)
+
+def cntr_class(i, driver, dup_dict, all_mss):
+    Select(driver.find_element(value='classes')).select_by_value(str(i))
+    witnesses = Select(driver.find_element(value='witnesses'))
+    for witness in witnesses.options:
+        witnesses.select_by_visible_text(witness.accessible_name)
+        ms_name = re.sub(r'\.', '', re.sub(r'𝔓', r'P', witness.accessible_name))
+        trans_missing = False
+        try:
+            trans_missing = witness.get_property('style')[0] == 'color'
+            print(f'Skipping {ms_name}')
+        except:
+            pass
+        if not trans_missing:
+            print(f'Getting {ms_name}')
+            driver.switch_to.frame('display')
+
+            # Get name info and see if has a GA number (relevant for things like ostraca)
+            aliases = re.sub(r'Aliases: ', '', driver.find_elements(By.CLASS_NAME, 'descr')[0].find_elements(By.TAG_NAME, 'tr')[0].text).split(', ')
+            aka = ms_name
+            for alias in aliases:
+                if re.search(r'GA [PO0]\d+', alias) is not None:
+                    aka = re.sub(r'GA ', '', alias)
+                    break
+
+            # Only get the transcription if we don't have either the transcription or the manuscript
+            if all_mss.get(aka) is None:
+                # Check to see if it is being referenced by another name (which all_mss will already have)
+                possible_parent = dup_dict.get('backward').get(aka)
+                if possible_parent is not None:
+                    aka = possible_parent
+                else:
+                    all_mss.update({aka : {'transcription?' : False}})
+            if all_mss.get(aka).get('transcription?') is False:
+                all_mss.get(aka).update({'transcription?' : True})
+            
+                # Format the data
+                driver.execute_script('''
+                    //replace the verse number with the full title
+                    document.querySelectorAll('a').forEach(e => {
+                        e.innerText = '~~' + e.title + '~+' //~~ and ~+ are for splitting later
+                    })
+                                    
+                    //add brackets around lacunae
+                    document.querySelectorAll('.exp').forEach(e => {
+                        e.innerText = '[' + e.innerText + ']'
+                    })
+                ''')
+                
+                #get rid of dashes and newlines and extraneous spaces and brackets        
+                trans = ''
+                for section in driver.find_elements(By.CLASS_NAME, 'trans'):
+                    scrub = section.text
+                    scrub = re.sub(r'-|—|\n', r'', scrub, flags=re.MULTILINE)
+                    scrub = re.sub(r'\[( )*\]', r' ', scrub, flags=re.MULTILINE)
+                    scrub = re.sub(r'\]( )*\[', r'', scrub, flags=re.MULTILINE)
+                    scrub = re.sub(r' ( +)', r' ', scrub, flags=re.MULTILINE)
+                    trans += scrub.lstrip()
+
+                # Split into verses and update dictionary
+                vv = trans.split('~~')[1:]
+                for v in vv:
+                    reftext = v.split('~+')
+                    text = reftext[1]
+                    ref = reftext[0].split(':')
+                    verse = int(ref[-1])
+                    bookchap = ref[0].rsplit(' ', 1)
+                    chap = int(bookchap[-1])
+                    book = books[bookchap[0]]
+
+                    # Somehow add verse to dictionary with its transcription
+                    ensure_existence(all_mss.get(aka), book, chap, text, verse, verse+1)
+
+            driver.switch_to.default_content()
+
+
+def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
     driver.get("https://ntvmr.uni-muenster.de/catalog?docID="+str(type))
     driver.switch_to.frame(list_frame)
 
@@ -66,11 +177,11 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict):
 
     # For each ms, get its info, and then click on the link and do stuff there
     for ms in mss:
-        ms_dict = dict()
+        ms_dict = {'transcription?' : False}
         info = ms.find_elements(By.TAG_NAME, "td")
         id = int(info[0].text)
         if id >= lower_bound and id <= upper_bound:
-            # The regex is to handle Weird things in these name: L969DEL, L970DEL, l 2523, l 2525, l 2526, l 2527, l 2528, l 2529, l 2530, l 2531
+            # The regex is to handle Weird things in these names: L969DEL, L970DEL, l 2523, l 2525, l 2526, l 2527, l 2528, l 2529, l 2530, l 2531
             entry = re.sub('l ', 'L', re.sub('DEL', '', info[1].accessible_name.strip()))
             ms_name = entry.split(' ')[0]
             
@@ -90,14 +201,17 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict):
                 else:
                     pass # for the few extraneous ones that are self-referential
                 
-                if dup_dict.get(source_ms) is None:
-                    dup_dict.update({source_ms : []})
-                curr_dups_at_ms = dup_dict.get(source_ms)
+                if dup_dict.get('forward').get(source_ms) is None:
+                    dup_dict.get('forward').update({source_ms : []})
+                curr_dups_at_ms = dup_dict.get('forward').get(source_ms)
                 curr_dups_at_ms.extend([(ms_name, dup_type)])
-                dup_dict.update({source_ms : curr_dups_at_ms})
+                dup_dict.get('forward').update({source_ms : curr_dups_at_ms})
+                dup_dict.get('backward').update({ms_name : source_ms})
 
             print(ms_name)
-            '''name.click()
+            
+            # Click ms to get its contents
+            info[1].click()
             driver.switch_to.default_content()
             driver.switch_to.frame(info_frame)
             info = driver.find_element(value="content")
@@ -139,16 +253,21 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict):
                     # TODO Update dictionary for the manuscript with the range of contents
 
                     # Click link, get page contents and transcription, and return control
-                    ###link.click()
+                    link.click()
                     stale = False
                 except:
                     contents = info.find_elements(By.TAG_NAME, "tr")
-            ###get_pages(driver, ms_dict)
+            
+            # Get pages and return control to here
+            get_pages(driver, ms_dict)
             driver.switch_to.default_content()
-            driver.switch_to.frame(list_frame) ###'''
+            driver.switch_to.frame(list_frame) ###
+
             # Save each dictionary
-            with open(f'mss/{ms_name}.pkl','wb') as f:
-                pickle.dump(ms_dict, f)
+            '''with open(f'mss/{ms_name}.pkl','wb') as f:
+                pickle.dump(ms_dict, f)'''
+            # Update master dictionary
+            all_mss.update({ms_name : ms_dict})
     
     print(f'Finished getting all manuscripts of type {type}')
 
@@ -201,16 +320,8 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
             except IndexError:
                 v_end = v_st
 
-            # Ensure book exists
-            if ms_dict.get(book) is None:
-                ms_dict.update({book : dict()})
-            # Ensure chapter exists
-            if ms_dict.get(book).get(chap) is None:
-                ms_dict.get(book).update({chap : dict()})
-            # Add verses
-            for v in range(v_st, v_end):
-                ms_dict.get(book).get(chap).update({v : ""})
-
+            # Somehow add the content range to the dictionary and initialize the transcription with blanks
+            ensure_existence(ms_dict, book, chap, "", v_st, v_end)
 
     if contents.__contains__("Rev") is False:
         apoc_flag = ""
@@ -288,7 +399,7 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
             if v == '':
                 # This happens on page 1750 of 20001 (INTF's fault)
                 with open('errlog.txt','a') as ef:
-                    ef.write(f'Issues on page {page_num} of {ms_id} (blank element in list)')
+                    ef.write(f'Issues on page {page_num} of {ms_id} (blank element in list)\n')
                 break
 
             #remove all other line breaks (will be reinserted later)
@@ -318,18 +429,32 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
                     bcv = ref.split('.')
                     
                     # Update the manuscript's dictionary (concatenate always, because it either is blank or has stuff already there)
-                    try:
-                        concat = ms_dict.get(books[bcv[0]]).get(int(bcv[1])).get(int(bcv[2]))
-                        ms_dict.get(books[bcv[0]]).get(int(bcv[1])).update({int(bcv[2]) : concat + text})
-                    except:
-                        # Hits this at page 141 of 10041
-                        with open('errlog.txt','a') as ef:
-                            ef.write(f'Issues on page {page_num} of {ms_id} (found {bcv[0]} {bcv[1]}:{bcv[2]} in a page purporting to contain {contents})')
+                    add_verse(books[bcv[0]], int(bcv[1]), int(bcv[2]), text, page_num, ms_dict)
 
     driver.close()
     driver.switch_to.window(driver.window_handles[1])
     driver.switch_to.frame(list_frame)
 
+def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict):
+    try:
+        concat = ms_dict.get(book).get(chap).get(verse)
+        ms_dict.get(book).get(chap).update({verse : concat + text})
+        ms_dict.update({'transcription?' : True})
+    except Exception as e:
+        # Hits this at page 141 of 10041
+        with open('errlog.txt','a') as ef:
+            ef.write(f'Issues on page {page_num} of {ms_id} (found {book} {chap}:{verse} in a page purporting to contain {contents}): {e}\n')
+
+def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
+    # Ensure book exists
+    if ms_dict.get(book) is None:
+        ms_dict.update({book : dict()})
+    # Ensure chapter exists
+    if ms_dict.get(book).get(chap) is None:
+        ms_dict.get(book).update({chap : dict()})
+    # Add verses
+    for v in range(v_st, v_end):
+        ms_dict.get(book).get(chap).update({v : text})
 
 if __name__ == "__main__":
     main()
