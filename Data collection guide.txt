@@ -1,0 +1,210 @@
+I HIGHLY recommend just sticking to my ntmss.sql file. I made a lot of manual updates to that whenever I found something else in it that was wrong.
+Wikipedia often will have formatting errors (missing commas, incorrect verse ranges, out of bounds verses/chapters) or information errors (either due
+to lack of clarity (like with 0212 containing the Gospels when it only contains a few verses from each) or just plain errors) that mess up the parsing
+function. If anyone is ever attempting to do this again from scratch due to updates to Wiki/the INTF, here is some starter code. Again, I HIGHLY recommend
+sticking to my ntmss.sql file and manually updating things, because the bulk of the information should be correct. But if not, proceed at your own risk:
+
+Run this Javascript in the browser for each of the Wikipedia pages. You will have to perform lots of regex replacement after running this, but I have included
+a lot of those below as well. Compare with ntmss.sql for verification.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+DATA EXTRACTION FROM WIKIPEDIA
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/* STUFF THAT JUST NEEDS TO BE HARD CODED
+For Minuscules, change expectedms to 1001 and 2001 and in necessary pages.
+For ms_is_ms, change the leading 4 to a 2 on the rhs in lectionaries at: 40963→40100 and 40965→40114.
+For minuscule 1896, there is no Galatians
+For minuscule 2733, there is no 1 Cor or 1 Thess
+Handle 2908
+*/
+
+//THIS IS THE ONLY THING THAT NEEDS TO BE CHANGED
+let mflag = 1;	//1,2,3,4, for papyri, uncial, minuscule, lectionary
+
+//remove extraneous rows (RUN TWICE for whatever reason)
+let removeidx = mflag == 1 ? 6 : mflag == 3 ? 3 : 5;
+	for (let z = 0; z <=1; ++z) {
+		for (let tbody of document.getElementsByClassName("wikitable sortable jquery-tablesorter")) { 
+			for (let tr of tbody.children[1].children) {
+				if (tr.childElementCount <= removeidx) {tr.remove();
+			}
+		}
+	}
+}
+
+//get relevant info
+let expectedms = 0001;	//change this to 1001/2001 for minuscules
+let prevms = 0;
+for (let tbody of document.getElementsByClassName("wikitable sortable jquery-tablesorter")) {
+for (let tr of tbody.children[1].children) {
+	//get manuscript number and delete lect/pap indicators
+	let mnum = tr.children[0].innerText;
+	mnum = mnum.replace(/[\(ℓ( )?\)𝔓]/g,'');
+	mnum = mnum.trim();
+	
+	//do not include bracketed mss (these are lost or worthless)
+	if (mnum.at(0) != '[') {
+		//split mnum for ms_is_ms or abs tables
+		let orig_mnum = mnum.replace(/[ ]?[+=].*/g,'');
+		let ref_mnum = mnum.replace(/[0-9]*[ ]?[+=][ ]?\[/g,'');
+		ref_mnum = ref_mnum.replace(/[\[\]]/g,'');
+
+		//This changes the child indexing for uncials w/ silga
+		let cchhiilldd = (mflag == 2 && orig_mnum < 46) ? 3 : 1;
+
+		//Get century and handle all number formatting cases
+		let cent = tr.children[cchhiilldd].innerText;
+		cent = cent.replace(/\D/g,'');
+		cent = cent > 1000000 ? Math.floor(cent/10000) : cent;
+		cent = cent > 100000 ? Math.ceil(cent/1000) : cent;
+		cent = cent > 100 ? Math.ceil(cent/100) : cent;
+
+		//Get contents and trim away a good bit of junk
+		let contents = tr.children[cchhiilldd + 1].innerText;
+		contents = contents.replace(/\r\n/g,'');
+		if (mflag != 2) {contents = contents.replace(/( \([^)]*\))/g,'');}
+		contents = contents.replace(/[^0-9a-zA-Z:,-; —–]/g,'');
+		contents = contents.replace(/(gospel|book|excerpts[\d]*) (of|from) /gi,'');
+		contents = contents.replace(/(theophylact|cyril|chrysostom|nicetas|zigabenus|theodoret|andreas of caesarea( and oecumenius)?|fredericii venetiani|oecumenius|maximus peloponnesius( and andreas of caesarea)?)?( )?(commentar(y|ies)|homily|homilies|catena) (on|and|of) (the )?/gi,'');
+		contents = contents.replace(/[A-Z],/g,',');
+		contents = contents.replace(/[A-Z]$/g,'');
+		contents = contents.replace(/[A-Z] /g,'');
+
+		//Ordinary case where the ms was expected
+		if (expectedms == orig_mnum) {
+			//convert mnum into an INTF style ID
+			let oidnum = parseInt(orig_mnum) + 10000*mflag;
+			console.log("insert into ms values(" + oidnum + "," + cent + ",'" + contents + "');");
+
+			//Handles ms_is_ms and abs
+			if (orig_mnum != ref_mnum) {
+				for (let rn of ref_mnum.split(",")) {
+					//ms_is_ms case (handle a comma separated list of mss on the rhs)
+					if (rn.search(/abs/gi) != -1) {
+						let redrn = parseInt(rn.replace(/abs.*/gi,'').trim()) + 10000*mflag;
+						console.log("insert into abs values (" + redrn + "," + oidnum + ");");
+					}
+
+					//abs case
+					else {
+					let ridnum = parseInt(rn.trim()) + 10000*mflag;
+						console.log("insert into ms_is_ms values(" + oidnum + "," + ridnum + ");");
+					}
+				}
+			}
+			expectedms++;
+			prevms = oidnum;
+		}
+
+		//This captures split rows in wiki where 1 ms row has 2 content rows (adds extra content to original tuple)
+		else if (!Number(orig_mnum)) {
+			console.log("update ms set contents=concat(contents,'" + orig_mnum + "') where ms_id=" + prevms + ";");
+		}
+		//the else case will never happen (except for a bug in lectionaries after L1030, but it doesn’t really matter)
+	}
+
+	//this increments expectedms during cases where a ms is bracketed (like 296)
+	let cp = mnum.replace(/^\[/,'');
+	cp = cp.replace(/\].*/,'');
+	if (cp == expectedms) {expectedms++;}
+}
+}
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+DATA EXTRACTION FROM EACH INTF MANUSCRIPT PAGE FOR LINK GENERATION
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Open chrome from the command line like this (SEE NOTICE AT END OF SECTION):
+start chrome —-auto-open-devtools-for-tabs --disable-web-security --enable-logging --v=1
+(results will be in C:\Users\{your_username_here}\AppData\Local\Google\Chrome\User Data\chrome_debug.log)
+
+//In the console, run this (NOTE: This will open however many new tabs you specify based on the ranges. Anything beyond 100 tabs is sort of impractical on most machines and will probably crash your browser)
+let mstype = 1;	//change between 1, 2, 3, and 4 for papyri, majuscules, minuscules, and lectionaries, respectively)
+let range_start = 1;
+let range_end = range_start + 99;
+for (let i = range_start; i <= range_end; ++i) {
+	let zeros = Math.log10(i) < 1 ? "000" : Math.log10(i) < 2 ? "00" : Math.log10(i) < 3 ? "0" : "";
+	window.open("https://ntvmr.uni-muenster.de/manuscript-workspace?docID=" + mstype + zeros + i);
+}
+
+//When all the tabs have loaded, run this in each one
+for (let row of window.frames["remote_iframe_350290540"].document.getElementById("pagesTable").children) {
+	if (row.childElementCount==5 && !(row.children[2].innerText == "No Index Content" || row.children[2].innerText == "" || row.children[2].innerText == "Commentary Text")){
+		console.log("insert into mslinks values('" + row.children[0].innerText + "','" + row.children[0].id.replace(/.*page/g,'') + "','" + row.children[2].innerText.replace(/\n|\r/g,' ') + "');");
+	}
+}
+
+//You will have to run this for all 5000+ manuscripts and it is very time consuming
+//IMPORTANT: I recommend periodically copying the chrome_debug.log file to somewhere else after each batch because it will be overwritten each time Chrome is launched
+//If you trust yourself to never close the initial Chrome instance that you launched, go ahead and never save it, but all your work can easily be lost if you accidentally reopen another browser instance
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+REGEX (do this on each chrome_debug.log file):
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+This removes anything in the chrome_debug.log file that is not a SQL statement that you previously generated
+{
+	%s/.*\(insert into mslinks values('[0-9]\{5}','[0-9]*','.*');\).*/\1/g
+	%s/^[^i].*//g
+	%s/^\n//g
+}
+
+This checks for things like Rev 13:0
+{
+	%s/:0/:1/gc	//check this again
+	%s/:1-1\D/:1/gc	//also check this
+}
+
+This removes OT/apoc links, “ + Commentary Text”, and "inscription" or "subscription" phrases
+{
+	%s/ \?+ \?Commentary Text//gc
+	%s/\d\?\a* \(in\|sub\)scriptio;\? \?//gc
+	%s/\( \)\?\(Gen\|Exod\|Lev\|Num\|Deut\|Josh\|Judg\|Ruth\|Job\|Ps\|Prov\|Isa\|Jer\|Ezek\|Dan\|Hos\|Joel\|Amos\|Obad\|Jonah\|Mic\|Nah\|Hab\|Zeph\|Hag\|Zech\|Mal\|1Esd\|Bar\|Odes\|Sir\|Bel\)[^;,']*\(;\|,\)\?\( \)\?//gc
+	%s/.*''.*\n//gc
+}
+
+A few extra necessary things (standarizes the format of verses, replaces ugly lectionary things, etc.
+{
+	//Standardize verses
+	:%s/\(\d\?\a\+\)\(\d\d\?:\)/\1 \2/gic
+	:%s/\(\d\+:\d\+\)\(;\? \?\)\(\d\? \?\a\)/\1, \3/gic
+	:%s/\(\d\+:\d\+-\?\d\?\)\(;\? \?\)\(\d\? \?\a\)/\1, \3/gic
+	:%s/\([^)0-9]\);/\1,/gc
+	:%s/;\([^\n]\)/,\1/gc
+
+	//Replaces ugly things that appear in lectionaries (PROBABLY UNRELIABLE BUT STILL USEFUL)
+	%s/S\d W\d .*(\(\a*\)\.\?\([^)]*\))/\1 \2/gc
+	:%s/S[^(]*.\([^)]*\))/\1/gc
+	%s/\a\d[^(]*(\([^)]*\))/\1/gc	//might be best
+	:%s/Comm[^(]*(\([^)]*\))/\1/gc
+	:%s/\(\a\d\+ \?\)\+//gc
+	:%s/\(;\?\) \?\a\d\+//gc
+}
+
+
+VERSE ID STUFF (keeping temporarily, if this is still here, ignore it
+{
+	:%s/^\(\d\?\)\( \?\)\(\a*\) \(\d\+\):\(\d\+\) \(.*\)/insert into verse values(\1\3\4:\5,"\1\2\3 \4:\5","\6");/gc
+	:%s/\(values(\)\(\d\?\a*\)\(\d\):\(\d\)\(,\)/\1\20\30\4\5/gc
+	:%s/\(values(\)\(\d\?\a*\)\(\d\):\(\d\)\(\d\)\(,\)/\1\2\30\4\5\6/gc
+	:%s/\(values(\)\(\d\?\a*\)\(\d\)\(\d\):\(\d\)\(\d\)\(,\)/\1\2\3\4\5\6\7/gc
+	:%s/\(values(\)\(\d\?\a*\)\(\d\)\(\d\):\(\d\)\(,\)/\1\2\3\40\5\6/gc
+	:%s/\(values(\)Matthew/\101/gc
+}
+
+Again, it is best to just use the ntmss2.sql file now…
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
