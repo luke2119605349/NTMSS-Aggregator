@@ -5,6 +5,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from time import sleep
 import re
 import pickle
+import pprint as pp
 
 list_frame = 'remote_iframe_350290540'
 info_frame = 'remote_iframe_903780713'
@@ -69,22 +70,22 @@ def main():
     driver = webdriver.Chrome()
     dup_dict = {'forward': dict(), 'backward': dict()}
     all_mss = dict()
-    # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
-    # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
-    # get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
-    # get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
-    # get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
-    get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
+    get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
+    get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
+    get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
+    get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
+    get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
+    '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
     # ID 90056 (T789) appears to be a talisman containing John 11
     # Save dictionaries
     with open(f'dup_dict.pkl','wb') as f:
         pickle.dump(dup_dict, f)
     with open('all_mss.pkl','wb') as f:
-        pickle.dump(all_mss, f)
+        pickle.dump(all_mss, f)'''
 
-def get_cntr_mss(driver, dup_dict, all_mss, start_cl, stop_cl):
+def get_cntr_mss(driver, dup_dict, all_mss, first_class, last_class):
     driver.get("https://greekcntr.org/manuscripts/index.htm")
-    for i in range(start_cl, stop_cl+1):
+    for i in range(first_class, last_class+1):
         cntr_class(i, driver, dup_dict, all_mss)
 
 def cntr_class(i, driver, dup_dict, all_mss):
@@ -92,23 +93,23 @@ def cntr_class(i, driver, dup_dict, all_mss):
     witnesses = Select(driver.find_element(value='witnesses'))
     for witness in witnesses.options:
         witnesses.select_by_visible_text(witness.accessible_name)
-        ms_name = re.sub(r'\.', '', re.sub(r'𝔓', r'P', witness.accessible_name))
+        ms_name = re.sub(r'𝔓', r'P', witness.accessible_name)
         trans_missing = False
         try:
             trans_missing = witness.get_property('style')[0] == 'color'
-            print(f'Skipping {ms_name}')
+            print(f'Skipping {ms_name} (no transcription available)')
         except:
             pass
         if not trans_missing:
-            print(f'Getting {ms_name}')
             driver.switch_to.frame('display')
 
             # Get name info and see if has a GA number (relevant for things like ostraca)
             aliases = re.sub(r'Aliases: ', '', driver.find_elements(By.CLASS_NAME, 'descr')[0].find_elements(By.TAG_NAME, 'tr')[0].text).split(', ')
             aka = ms_name
             for alias in aliases:
-                if re.search(r'GA [PO0]\d+', alias) is not None:
-                    aka = re.sub(r'GA ', '', alias)
+                ga = re.search(r'GA [PO0]\d+', alias)
+                if ga is not None:
+                    aka = re.search(r'[PO0]\d+', ga.group()).group()
                     break
 
             # Only get the transcription if we don't have either the transcription or the manuscript
@@ -119,9 +120,16 @@ def cntr_class(i, driver, dup_dict, all_mss):
                     aka = possible_parent
                 else:
                     all_mss.update({aka : {'transcription?' : False}})
+                    
+                    # Get dates when adding new ms
+                    years = re.search(r'\d+-\d+', driver.find_elements(By.CLASS_NAME, 'descr')[0].find_elements(By.TAG_NAME, 'tr')[3].text).group().split('-')
+                    all_mss.get(aka).update({'yr_start' : int(years[0])})
+                    all_mss.get(aka).update({'yr_end' : int(years[1])})
+
             if all_mss.get(aka).get('transcription?') is False:
                 all_mss.get(aka).update({'transcription?' : True})
             
+                print(f'Getting {aka}')
                 # Format the data
                 driver.execute_script('''
                     //replace the verse number with the full title
@@ -158,9 +166,10 @@ def cntr_class(i, driver, dup_dict, all_mss):
 
                     # Somehow add verse to dictionary with its transcription
                     ensure_existence(all_mss.get(aka), book, chap, text, verse, verse+1)
-
+            else:
+                print(f'Skipping {aka} (already got transcription)')
+            
             driver.switch_to.default_content()
-
 
 def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
     driver.get("https://ntvmr.uni-muenster.de/catalog?docID="+str(type))
@@ -219,6 +228,7 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
             while len(contents) < 10:
                 contents = info.find_elements(By.TAG_NAME, "tr")
             sleep(0.2)
+            p=pp.PrettyPrinter()
             stale = True
             while stale:
                 try:
@@ -226,25 +236,50 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                     ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
                     linkspot = ths[0]
                     link = linkspot.find_elements(By.TAG_NAME, "a")[0]
-                    important_rows = dict()
                     
-                    
+                    important_rows = {'Content Overview' : dict(), 'Content' : dict(), 'GMO' : dict()}
+                    gmo = 0
+                    co = 0
+                    c = 0
                     for row in contents:
-                        gmo = 0
-                        co = 0
-                        c = 0
                         if row.text[:16] == "Content Overview":
-                            important_rows.update({"Content Overiew" : {co : row.text[17:]}})
+                            important_rows.get('Content Overview').update({co : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
                             co += 1
                         elif row.text[:7] == "Content":
-                            important_rows.update({"Content" : {c : row.text[8:]}})
+                            important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
                             c += 1
                         elif row.text[:30] == "General Manuscript Observation":
-                            important_rows.update({"GMO" : {gmo : row.text[31:]}})
+                            important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
                             gmo += 1
 
+                        # Get year info
+                        if row.text.__contains__('Origin Year Early'):
+                            ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+                        if row.text.__contains__('Origin Year Late'):
+                            ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+
+
+                    contents=pp.pformat(important_rows)
+                    with open('contents.txt','a') as f:
+                        f.write(contents + '\n')
+
+                    ###It really might be easier to just use NTMSS.sql to get the contents...###
 
                     
+                    # REGEXS to apply to GMO
+                    #re.sub(r'( ?\(.*\) ?)|($\.)', '', gmo)             # Remove parenthesized parts and periods at the end of lines
+                    #re.match(r'\d?[A-Z] \d', gmo)                      # If true, keep, else discard
+                    #book_units = re.split(r'(\d? ?[A-Z])', gmo)        # Split on new book
+                    # for book in book_units:
+                        #book_name = re.search(r'\d? ?[A-Za-z]+', book)
+                        #book_contents = re.sub(r'[A-Za-z ]', '', book, re.M)
+                        #chaps = book_contents.split(';')
+                        #for chap in chaps:
+                            #first
+
+                    # REGEXS to apply to CO
+
+                    # REGEXS to apply to C
 
 
                     # TODO Get things like name, data, and contents.
@@ -253,17 +288,17 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                     # TODO Update dictionary for the manuscript with the range of contents
 
                     # Click link, get page contents and transcription, and return control
-                    link.click()
+                    '''link.click()'''
                     stale = False
-                except:
+                except Exception as e:
                     contents = info.find_elements(By.TAG_NAME, "tr")
             
             # Get pages and return control to here
-            get_pages(driver, ms_dict)
+            '''get_pages(driver, ms_dict)'''
             driver.switch_to.default_content()
-            driver.switch_to.frame(list_frame) ###
+            driver.switch_to.frame(list_frame)
 
-            # Save each dictionary
+            # Save each dictionary so that progress is saved
             '''with open(f'mss/{ms_name}.pkl','wb') as f:
                 pickle.dump(ms_dict, f)'''
             # Update master dictionary
@@ -429,13 +464,13 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
                     bcv = ref.split('.')
                     
                     # Update the manuscript's dictionary (concatenate always, because it either is blank or has stuff already there)
-                    add_verse(books[bcv[0]], int(bcv[1]), int(bcv[2]), text, page_num, ms_dict)
+                    add_verse(books[bcv[0]], int(bcv[1]), int(bcv[2]), text, page_num, ms_dict, contents)
 
     driver.close()
     driver.switch_to.window(driver.window_handles[1])
     driver.switch_to.frame(list_frame)
 
-def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict):
+def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
     try:
         concat = ms_dict.get(book).get(chap).get(verse)
         ms_dict.get(book).get(chap).update({verse : concat + text})
