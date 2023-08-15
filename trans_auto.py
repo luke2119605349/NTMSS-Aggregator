@@ -10,61 +10,126 @@ import pprint as pp
 list_frame = 'remote_iframe_350290540'
 info_frame = 'remote_iframe_903780713'
 books = {
+    'Mt': 1,
 	'Matt': 1,
+    'Matthew': 1,
+    'Mc': 2,
+    'Mk': 2,
 	'Mark': 2,
+    'L': 3,
+    'Lk': 3,
 	'Luke': 3,
+    'J': 4,
 	'John': 4,
+    'Ac': 5,
+    'Act': 5,
 	'Acts': 5,
+    'R': 6,
 	'Rom': 6,
+	'Romans': 6,
+    '1K': 7,
+    '1 K': 7,
 	'1Cor': 7,
+	'1st Corinthians': 7,
+    '2K': 8,
+    '2 K': 8,
 	'2Cor': 8,
+	'2nd Corinthians': 8,
+    'G': 9,
 	'Gal': 9,
+	'Galatians': 9,
+    'E': 10,
 	'Eph': 10,
+	'Ephesians': 10,
+    'Ph': 11,
 	'Phil': 11,
+	'Philippians': 11,
+    'Kol': 12,
 	'Col': 12,
+	'Colossians': 12,
+    '1Th': 13,
+    '1 Th': 13,
 	'1Thess': 13,
+	'1st Thessalonians': 13,
+    '2Th': 14,
+    '2 Th': 14,
 	'2Thess': 14,
+	'2nd Thessalonians': 14,
 	'1Tim': 15,
+    '1 Tim': 15,
+	'1st Timothy': 15,
 	'2Tim': 16,
+    '2 Tim': 16,
+	'2nd Timothy': 16,
+    'Tt': 17,
 	'Titus': 17,
 	'Phlm': 18,
-	'Heb': 19,
-	'Jas': 20,
-	'1Pet': 21,
-	'2Pet': 22,
-	'1John': 23,
-	'2John': 24,
-	'3John': 25,
-	'Jude': 26,
-	'Rev': 27,
-    'Matthew': 1,
-	'Mark': 2,
-	'Luke': 3,
-	'John': 4,
-	'Acts': 5,
-	'Romans': 6,
-	'1st Corinthians': 7,
-	'2nd Corinthians': 8,
-	'Galatians': 9,
-	'Ephesians': 10,
-	'Philippians': 11,
-	'Colossians': 12,
-	'1st Thessalonians': 13,
-	'2nd Thessalonians': 14,
-	'1st Timothy': 15,
-	'2nd Timothy': 16,
-	'Titus': 17,
 	'Philemon': 18,
+    'H': 19,
+	'Heb': 19,
 	'Hebrews': 19,
+    'Jc': 20,
+	'Jas': 20,
 	'James': 20,
+    '1P': 21,
+    '1 P': 21,
+	'1Pet': 21,
 	'1st Peter': 21,
+    '2P': 22,
+    '2 P': 22,
+	'2Pet': 22,
 	'2nd Peter': 22,
+    '1J': 23,
+    '1 J': 23,
+	'1John': 23,
 	'1st John': 23,
+    '2J': 24,
+    '2 J': 24,
+	'2John': 24,
 	'2nd John': 24,
+    '3J': 25,
+    '3 J': 25,
+	'3John': 25,
 	'3rd John': 25,
 	'Jude': 26,
+    'Ap': 27,
+	'Rev': 27,
 	'Revelation': 27,
 }
+
+# Structure containing the number of verses in each chapter #NOTE 3 John has 15 in the NA28 (14 in TR)
+chap_verses = [
+    [25,23,17,25,48,34,29,34,38,42,30,50,58,36,39,28,27,35,30,34,46,46,39,51,46,75,66,20],
+    [45,28,35,41,43,56,37,38,50,52,33,44,37,72,47,20],
+    [80,52,38,44,39,49,50,56,62,42,54,59,35,35,32,31,37,43,48,47,38,71,56,53],
+    [51,25,36,54,47,71,53,59,41,42,57,50,38,31,27,33,26,40,42,31,25],
+    [26,47,26,37,42,15,60,40,43,48,30,25,52,28,41,40,34,28,41,38,40,30,35,27,27,32,44,31],
+    [32,29,31,25,21,23,25,39,33,21,36,21,14,23,33,27],
+    [31,16,23,21,13,20,40,13,27,33,34,31,13,40,58,24],
+    [24,17,18,18,21,18,16,24,15,18,33,21,14],
+    [24,21,29,31,26,18],
+    [23,22,21,32,33,24],
+    [30,30,21,23],
+    [29,23,25,18],
+    [10,20,13,18,28],
+    [12,17,18],
+    [20,15,16,16,25,21],
+    [18,26,17,22],
+    [16,15,15],
+    [25],
+    [14,18,19,16,14,20,28,13,28,39,40,29,25],
+    [27,26,18,17,20],
+    [25,25,22,19,14],
+    [21,22,18],
+    [10,29,24,21,21],
+    [13],
+    [15],
+    [25],
+    [20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21]
+]
+
+def get_v_ct(book, chap):
+    return chap_verses[book-1][chap-1]
 
 def main():
     driver = webdriver.Chrome()
@@ -76,7 +141,7 @@ def main():
     get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
     get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
     '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
-    # ID 90056 (T789) appears to be a talisman containing John 11
+    # ID 90056 (T789) appears to be a talisman containing John 11 and I indexed and transcribed it
     # Save dictionaries
     with open(f'dup_dict.pkl','wb') as f:
         pickle.dump(dup_dict, f)
@@ -165,7 +230,7 @@ def cntr_class(i, driver, dup_dict, all_mss):
                     book = books[bookchap[0]]
 
                     # Somehow add verse to dictionary with its transcription
-                    ensure_existence(all_mss.get(aka), book, chap, text, verse, verse+1)
+                    ensure_existence(all_mss.get(aka), book, chap, text, verse, verse)
             else:
                 print(f'Skipping {aka} (already got transcription)')
             
@@ -193,13 +258,13 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
             # The regex is to handle Weird things in these names: L969DEL, L970DEL, l 2523, l 2525, l 2526, l 2527, l 2528, l 2529, l 2530, l 2531
             entry = re.sub('l ', 'L', re.sub('DEL', '', info[1].accessible_name.strip()))
             ms_name = entry.split(' ')[0]
+            print(ms_name)
             
             # For linking duplicates or combined mss:
             # The format is either "Removed; Combined; See: MSNUM"
             #                   or "Removed; Duplicate; See: MSNUM"
             #                   or "Removed; See: CURRMSNUM"
             # Exception cases that are fine: 2560, 2892, L242, L652, L1353, L1398 but they still follow enough of the pattern to regex them consistently
-            # !!!!! TODO Other exception cases to manually handle: L355, L1353 !!!!! TODO
             if re.search('Removed', entry) is not None:
                 if re.search('Combined', entry) is not None:
                     source_ms = re.search(r'(L|P)?\d+', re.search(r'See: (L|P)?\d+', entry).group()).group()
@@ -209,6 +274,12 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                     dup_type = 'Duplicate'
                 else:
                     pass # for the few extraneous ones that are self-referential
+
+                # Other exception cases to manually handle: L355, L1353 (the INTF has weird things here)
+                if re.match('L355', entry):
+                    source_ms = '0303'
+                if re.match('L1353', entry):
+                    source_ms = 'L962'
                 
                 if dup_dict.get('forward').get(source_ms) is None:
                     dup_dict.get('forward').update({source_ms : []})
@@ -217,92 +288,88 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                 dup_dict.get('forward').update({source_ms : curr_dups_at_ms})
                 dup_dict.get('backward').update({ms_name : source_ms})
 
-            print(ms_name)
             
-            # Click ms to get its contents
-            info[1].click()
-            driver.switch_to.default_content()
-            driver.switch_to.frame(info_frame)
-            info = driver.find_element(value="content")
-            contents = info.find_elements(By.TAG_NAME, "tr")
-            while len(contents) < 10:
+            # Click ms to get its contents if it isn't designated as REMOVED
+            else:
+                info[1].click()
+                driver.switch_to.default_content()
+                driver.switch_to.frame(info_frame)
+                info = driver.find_element(value="content")
                 contents = info.find_elements(By.TAG_NAME, "tr")
-            sleep(0.2)
-            p=pp.PrettyPrinter()
-            stale = True
-            while stale:
-                try:
-                    toprow = contents[0]
-                    ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
-                    linkspot = ths[0]
-                    link = linkspot.find_elements(By.TAG_NAME, "a")[0]
-                    
-                    important_rows = {'Content Overview' : dict(), 'Content' : dict(), 'GMO' : dict()}
-                    gmo = 0
-                    co = 0
-                    c = 0
-                    for row in contents:
-                        if row.text[:16] == "Content Overview":
-                            important_rows.get('Content Overview').update({co : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                            co += 1
-                        elif row.text[:7] == "Content":
-                            important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                            c += 1
-                        elif row.text[:30] == "General Manuscript Observation":
-                            important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                            gmo += 1
-
-                        # Get year info
-                        if row.text.__contains__('Origin Year Early'):
-                            ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
-                        if row.text.__contains__('Origin Year Late'):
-                            ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
-
-
-                    contents=pp.pformat(important_rows)
-                    with open('contents.txt','a') as f:
-                        f.write(contents + '\n')
-
-                    ###It really might be easier to just use NTMSS.sql to get the contents...###
-
-                    
-                    # REGEXS to apply to GMO
-                    #re.sub(r'( ?\(.*\) ?)|($\.)', '', gmo)             # Remove parenthesized parts and periods at the end of lines
-                    #re.match(r'\d?[A-Z] \d', gmo)                      # If true, keep, else discard
-                    #book_units = re.split(r'(\d? ?[A-Z])', gmo)        # Split on new book
-                    # for book in book_units:
-                        #book_name = re.search(r'\d? ?[A-Za-z]+', book)
-                        #book_contents = re.sub(r'[A-Za-z ]', '', book, re.M)
-                        #chaps = book_contents.split(';')
-                        #for chap in chaps:
-                            #first
-
-                    # REGEXS to apply to CO
-
-                    # REGEXS to apply to C
-
-
-                    # TODO Get things like name, data, and contents.
-                    
-
-                    # TODO Update dictionary for the manuscript with the range of contents
-
-                    # Click link, get page contents and transcription, and return control
-                    '''link.click()'''
-                    stale = False
-                except Exception as e:
+                while len(contents) < 10:
                     contents = info.find_elements(By.TAG_NAME, "tr")
-            
-            # Get pages and return control to here
-            '''get_pages(driver, ms_dict)'''
-            driver.switch_to.default_content()
-            driver.switch_to.frame(list_frame)
+                sleep(0.2)
+                p=pp.PrettyPrinter()
+                stale = True
+                while stale:
+                    try:
+                        toprow = contents[0]
+                        ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
+                        linkspot = ths[0]
+                        link = linkspot.find_elements(By.TAG_NAME, "a")[0]
+                        
+                        important_rows = {'Content Overview' : dict(), 'Content' : dict(), 'GMO' : dict()}
+                        gmo = 0
+                        co = 0
+                        c = 0
+                        for row in contents:
+                            # Get biblical content info
+                            if row.text[:16] == "Content Overview":
+                                important_rows.get('Content Overview').update({co : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                                co += 1
+                            elif row.text[:7] == "Content":
+                                important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                                c += 1
+                            elif row.text[:30] == "General Manuscript Observation":
+                                important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                                gmo += 1
 
-            # Save each dictionary so that progress is saved
-            '''with open(f'mss/{ms_name}.pkl','wb') as f:
-                pickle.dump(ms_dict, f)'''
-            # Update master dictionary
-            all_mss.update({ms_name : ms_dict})
+                            # Get year info
+                            if row.text.__contains__('Origin Year Early'):
+                                ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+                            if row.text.__contains__('Origin Year Late'):
+                                ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+
+                        contents=pp.pformat(important_rows)
+                        with open('contents.txt','a') as f:
+                            f.write(contents + '\n')
+
+                        ###It really might be easier to just use NTMSS.sql to get the contents...###
+                        master_range = []
+
+                        
+                        # REGEXS to apply to GMO
+                        # Good test case:
+                            #Mt 25,15-26,3.17-39 (Sinai); 26,59-70 (St. Petersburg); Mt 26:70-27:7 (Sinai); 27,7-30 (Kiew); 27,44-56 (St. Petersburg); 28,11-20; Mc 1,11-22 (Sinai); 1,34-2,12 (St. Petersburg); 2,21-3,3.27-4,4; 5,9-20 (Sinai).
+                        regex_range(important_rows, 'GMO', master_range)                   
+
+                        # REGEXS to apply to CO
+
+                        # REGEXS to apply to C
+
+
+                        # TODO Get things like name, data, and contents.
+                        
+
+                        # TODO Update dictionary for the manuscript with the range of contents
+
+                        # Click link, get page contents and transcription, and return control
+                        '''link.click()'''
+                        stale = False
+                    except Exception as e:
+                        # Primarily intended for StaleReferenceElementException, but also a catch all for others
+                        contents = info.find_elements(By.TAG_NAME, "tr")
+                
+                # Get pages and return control to here
+                '''get_pages(driver, ms_dict)'''
+                driver.switch_to.default_content()
+                driver.switch_to.frame(list_frame)
+
+                # Save each dictionary so that progress is saved
+                '''with open(f'mss/{ms_name}.pkl','wb') as f:
+                    pickle.dump(ms_dict, f)'''
+                # Update master dictionary
+                all_mss.update({ms_name : ms_dict})
     
     print(f'Finished getting all manuscripts of type {type}')
 
@@ -472,8 +539,9 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
 
 def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
     try:
-        concat = ms_dict.get(book).get(chap).get(verse)
-        ms_dict.get(book).get(chap).update({verse : concat + text})
+        concat = ms_dict.get(book).get(chap).get(verse).get('t')
+        ms_dict.get(book).get(chap).get(verse).update({'t' : concat + text})
+        ms_dict.get(book).get(chap).get(verse).update({'intf_page' : page_num})
         ms_dict.update({'transcription?' : True})
     except Exception as e:
         # Hits this at page 141 of 10041
@@ -488,8 +556,106 @@ def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
     if ms_dict.get(book).get(chap) is None:
         ms_dict.get(book).update({chap : dict()})
     # Add verses
-    for v in range(v_st, v_end):
-        ms_dict.get(book).get(chap).update({v : text})
+    for v in range(v_st, v_end+1):
+        ms_dict.get(book).get(chap).update({v : {'t': text}})
+
+# This takes something from the important_rows dictionary and does regex and range creation on it
+def regex_range(important_rows, elem, master_range):
+    for things in important_rows.get(elem):
+        thing = important_rows.get(elem).get(things)
+        thing = re.sub(r'([,\.:;])? ?\([^)]*\) ?;?', ';', thing) # Remove parenthesized parts (with potential surrounding spaces and leading punctuation)
+        thing = re.sub(r'([\.,:;])*$|^([\.,:;])*', '', thing)    # Remove punctation at the beginning or end of lines
+        thing = re.sub(r',', r':', thing)                        # Replace commas with colons
+        thing = re.sub(r'\.', r',', thing)                       # Replace periods with commas
+
+        # If the start of the entry is in the format of a reference, keep, else discard
+        if re.match(r'\d? ?[A-Za-z]+ \d', thing) is not None:
+            # TODO before this thing, search for 'fin' and replace those
+            ...
+            # TODO when there is nothing but the book name as in P46
+            # Replace potential 'f' with the next verse
+            fs = re.search(r'\d+f', thing)
+            if fs is not None:
+                fs = re.findall(r'\d+f', thing)
+                while len(fs) != 0:
+                    split_point = thing.rfind(fs.pop())
+                    begin = thing[:split_point]
+                    end = thing[split_point:]
+                    num = int(re.match('\d+', end).group())
+                    new_end = re.sub('f', '-' + str(num + 1), end)
+                    thing = begin + new_end
+
+            # Split on new book
+            book_units = re.split(r'(\d? ?[A-Za-z]+ [\d:;\- ,]+($|[:; ,]))', thing)[1::3]
+            for bookss in book_units:
+                bk = bookss.strip()
+                book = re.sub(r'([\.,:;])*$', '', bookss.strip())               # Replace trailing whitespace or punctuation
+                book_name = re.search(r'\d? ?[A-Za-z]+', book).group()
+                book_contents = book[len(book_name):].strip()
+                start_chap = 0
+                sections = re.split(' ?; ?', book_contents)
+                for section in sections:
+                    # TODO, handle random words in the entry (might just be a try block)
+                    # TODO, handle when it's only a chapter number (has a plus??)
+                    parts = re.split(' ?, ?', section)
+                    for part in parts:
+                        end_chap = start_chap   # The last hit chapter must be updated
+                        # When there is a range
+                        if part.__contains__('-'):
+                            limits = re.split(' ?- ?', part)
+                            start = limits[0]
+                            end = limits[1]
+                            if start.__contains__(':'):
+                                ref = start.split(':')
+                                start_chap = int(ref[0])
+                                start_verse = int(ref[1])
+                            else:
+                                start_verse = int(start)
+
+                            if end.__contains__(':'):
+                                ref = end.split(':')
+                                end_chap = int(ref[0])
+                                end_verse = int(ref[1])
+                            else:
+                                end_chap = start_chap
+                                end_verse = int(end)
+                            range = get_bible_range(book_name, start_chap, start_verse, end_chap, end_verse)
+                            start_chap = end_chap   # Move start chap forward if end_chap has crossed a chapter barrier
+                        else:
+                            #just get one verse
+                            if part.__contains__(':'):
+                                # With a chapter indicator
+                                cv = part.split(':')
+                                start_chap = int(cv[0])
+                                start_verse = int(cv[1])
+                            else:
+                                # Without a chapter indicator
+                                start_verse = int(part)
+                            range = [(books[book_name], start_chap, start_verse)]
+                        master_range.extend(range)
+
+# This will return a list of triples of (book, chap, verse) in ascending order
+def get_bible_range(bn, sc, sv, ec, ev):
+    book = books[bn]
+    b_range = []
+
+    # Get verses within the current chapter
+    if ec == sc:
+        for v in range(sv, ev+1):
+            b_range.append((book, sc, v))
+    else:
+        # Add verses in starting chapter
+        for v in range(sv, get_v_ct(book, sc)+1):
+            b_range.append((book, sc, v))
+        # Add all verses in the middle
+        for chap in range(sc+1, ec):
+            for v in range(1, get_v_ct(book, chap)+1):
+                b_range.append((book, chap, v))
+        # Add verses in end chapter
+        for v in range(1, ev+1):
+            b_range.append((book, ec, v))
+
+    return b_range
 
 if __name__ == "__main__":
     main()
