@@ -2,10 +2,10 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import StaleElementReferenceException as Stale
 from time import sleep
 import re
 import pickle
-import pprint as pp
 
 list_frame = 'remote_iframe_350290540'
 info_frame = 'remote_iframe_903780713'
@@ -55,14 +55,19 @@ books = {
     '2 Th': 14,
 	'2Thess': 14,
 	'2nd Thessalonians': 14,
+    '1T': 15,
+    '1 T': 15,
 	'1Tim': 15,
     '1 Tim': 15,
 	'1st Timothy': 15,
+    '2T': 16,
+    '2 T': 16,
 	'2Tim': 16,
     '2 Tim': 16,
 	'2nd Timothy': 16,
     'Tt': 17,
 	'Titus': 17,
+    'Phm': 18,
 	'Phlm': 18,
 	'Philemon': 18,
     'H': 19,
@@ -91,13 +96,15 @@ books = {
     '3 J': 25,
 	'3John': 25,
 	'3rd John': 25,
+    'Jd': 26,
 	'Jude': 26,
     'Ap': 27,
 	'Rev': 27,
 	'Revelation': 27,
 }
 
-# Structure containing the number of verses in each chapter #NOTE 3 John has 15 in the NA28 (14 in TR)
+# Structure containing the number of verses in each chapter
+# #NOTE 3 John has 15 here but 14 in the TR, and 2 Cor 13 has 13 here but 14 in the TR
 chap_verses = [
     [25,23,17,25,48,34,29,34,38,42,30,50,58,36,39,28,27,35,30,34,46,46,39,51,46,75,66,20],
     [45,28,35,41,43,56,37,38,50,52,33,44,37,72,47,20],
@@ -106,7 +113,7 @@ chap_verses = [
     [26,47,26,37,42,15,60,40,43,48,30,25,52,28,41,40,34,28,41,38,40,30,35,27,27,32,44,31],
     [32,29,31,25,21,23,25,39,33,21,36,21,14,23,33,27],
     [31,16,23,21,13,20,40,13,27,33,34,31,13,40,58,24],
-    [24,17,18,18,21,18,16,24,15,18,33,21,14],
+    [24,17,18,18,21,18,16,24,15,18,33,21,13],
     [24,21,29,31,26,18],
     [23,22,21,32,33,24],
     [30,30,21,23],
@@ -131,12 +138,15 @@ chap_verses = [
 def get_v_ct(book, chap):
     return chap_verses[book-1][chap-1]
 
+def get_chap_ct(book):
+    return len(chap_verses[book-1])
+
 def main():
     driver = webdriver.Chrome()
     dup_dict = {'forward': dict(), 'backward': dict()}
     all_mss = dict()
-    get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
-    get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
+    # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
+    # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
     get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
     get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
     get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
@@ -299,7 +309,6 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                 while len(contents) < 10:
                     contents = info.find_elements(By.TAG_NAME, "tr")
                 sleep(0.2)
-                p=pp.PrettyPrinter()
                 stale = True
                 while stale:
                     try:
@@ -330,35 +339,26 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                             if row.text.__contains__('Origin Year Late'):
                                 ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
 
-                        contents=pp.pformat(important_rows)
-                        with open('contents.txt','a') as f:
-                            f.write(contents + '\n')
-
-                        ###It really might be easier to just use NTMSS.sql to get the contents...###
                         master_range = []
-
-                        
                         # REGEXS to apply to GMO
-                        # Good test case:
-                            #Mt 25,15-26,3.17-39 (Sinai); 26,59-70 (St. Petersburg); Mt 26:70-27:7 (Sinai); 27,7-30 (Kiew); 27,44-56 (St. Petersburg); 28,11-20; Mc 1,11-22 (Sinai); 1,34-2,12 (St. Petersburg); 2,21-3,3.27-4,4; 5,9-20 (Sinai).
                         regex_range(important_rows, 'GMO', master_range)                   
-
+                        if len(master_range) == 0:
+                            print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
                         # REGEXS to apply to CO
 
                         # REGEXS to apply to C
 
-
-                        # TODO Get things like name, data, and contents.
-                        
-
-                        # TODO Update dictionary for the manuscript with the range of contents
+                        # Update dictionary for the manuscript with the range of contents
+                        add_range(master_range, ms_dict)
 
                         # Click link, get page contents and transcription, and return control
                         '''link.click()'''
                         stale = False
-                    except Exception as e:
-                        # Primarily intended for StaleReferenceElementException, but also a catch all for others
+                    except Stale as e:
+                        # Try reloading if there is a stale element
                         contents = info.find_elements(By.TAG_NAME, "tr")
+                    except Exception as e:
+                        e
                 
                 # Get pages and return control to here
                 '''get_pages(driver, ms_dict)'''
@@ -544,9 +544,17 @@ def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
         ms_dict.get(book).get(chap).get(verse).update({'intf_page' : page_num})
         ms_dict.update({'transcription?' : True})
     except Exception as e:
-        # Hits this at page 141 of 10041
         with open('errlog.txt','a') as ef:
             ef.write(f'Issues on page {page_num} of {ms_id} (found {book} {chap}:{verse} in a page purporting to contain {contents}): {e}\n')
+        
+        # Correct an error in P41 where Acts 20:28-30 is marked as Acts 28:28-30
+        if ms_id == 'P41' and book == 5 and chap == 28:
+            add_verse(book, 20, verse, text, page_num, ms_id, ms_dict, contents)
+        
+        # Add verse if we find a transcription of it when we previously didn't know about it
+        else:
+            ensure_existence(ms_dict, book, chap, text, verse, verse)
+            add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents)
 
 def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
     # Ensure book exists
@@ -563,16 +571,19 @@ def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
 def regex_range(important_rows, elem, master_range):
     for things in important_rows.get(elem):
         thing = important_rows.get(elem).get(things)
+        thing = re.sub(r'\( ?\? ?\)', '', thing)                 # Remove '(?)' marks
         thing = re.sub(r'([,\.:;])? ?\([^)]*\) ?;?', ';', thing) # Remove parenthesized parts (with potential surrounding spaces and leading punctuation)
         thing = re.sub(r'([\.,:;])*$|^([\.,:;])*', '', thing)    # Remove punctation at the beginning or end of lines
+        thing = re.sub(r'\+[, ]', ';', thing)                    # Replace '+,' (or '+ ') with a semicolon because this indicates an entire chapter
+        thing = re.sub(r'([,;])+([,;])', r'\1', thing)           # I have no idea if this is needed at all
         thing = re.sub(r',', r':', thing)                        # Replace commas with colons
         thing = re.sub(r'\.', r',', thing)                       # Replace periods with commas
+        thing = re.sub(r'fin,?', '0000', thing)                  # Replace 'fin' with 000 to handle later (leaving it as fin breaks the chapter division regex)
+        thing = re.sub(r'\?|\+', '', thing)                      # Remove extra + and ?
+        thing = re.sub(r'\/\d+', '', thing)                      # Replace things like 17/18 to just 17 (I don't care if it could be a little better)
 
-        # If the start of the entry is in the format of a reference, keep, else discard
-        if re.match(r'\d? ?[A-Za-z]+ \d', thing) is not None:
-            # TODO before this thing, search for 'fin' and replace those
-            ...
-            # TODO when there is nothing but the book name as in P46
+        # If the start of the entry is in the format of a reference, keep, else discard (the __contains__ is an edge case that breaks this at 30319)
+        if re.match(r'\d? ?[A-Za-z]+ \d', thing) is not None and not thing.__contains__('miniscule'):
             # Replace potential 'f' with the next verse
             fs = re.search(r'\d+f', thing)
             if fs is not None:
@@ -586,53 +597,118 @@ def regex_range(important_rows, elem, master_range):
                     thing = begin + new_end
 
             # Split on new book
-            book_units = re.split(r'(\d? ?[A-Za-z]+ [\d:;\- ,]+($|[:; ,]))', thing)[1::3]
+            book_units = re.split(r'(\d? ?[A-Za-z]+( [\d:;\- ,\+\?]+)?($|[:;,]))', thing)[1::4]
             for bookss in book_units:
-                bk = bookss.strip()
                 book = re.sub(r'([\.,:;])*$', '', bookss.strip())               # Replace trailing whitespace or punctuation
                 book_name = re.search(r'\d? ?[A-Za-z]+', book).group()
                 book_contents = book[len(book_name):].strip()
-                start_chap = 0
-                sections = re.split(' ?; ?', book_contents)
-                for section in sections:
-                    # TODO, handle random words in the entry (might just be a try block)
-                    # TODO, handle when it's only a chapter number (has a plus??)
-                    parts = re.split(' ?, ?', section)
-                    for part in parts:
-                        end_chap = start_chap   # The last hit chapter must be updated
-                        # When there is a range
-                        if part.__contains__('-'):
-                            limits = re.split(' ?- ?', part)
-                            start = limits[0]
-                            end = limits[1]
-                            if start.__contains__(':'):
-                                ref = start.split(':')
-                                start_chap = int(ref[0])
-                                start_verse = int(ref[1])
-                            else:
-                                start_verse = int(start)
-
-                            if end.__contains__(':'):
-                                ref = end.split(':')
-                                end_chap = int(ref[0])
-                                end_verse = int(ref[1])
-                            else:
-                                end_chap = start_chap
-                                end_verse = int(end)
-                            range = get_bible_range(book_name, start_chap, start_verse, end_chap, end_verse)
-                            start_chap = end_chap   # Move start chap forward if end_chap has crossed a chapter barrier
-                        else:
-                            #just get one verse
-                            if part.__contains__(':'):
-                                # With a chapter indicator
-                                cv = part.split(':')
-                                start_chap = int(cv[0])
-                                start_verse = int(cv[1])
-                            else:
-                                # Without a chapter indicator
-                                start_verse = int(part)
-                            range = [(books[book_name], start_chap, start_verse)]
+                try:
+                    bk = books[book_name]
+                    # When there is nothing but the book name (as in P46)
+                    if book_contents == '':
+                        range = get_bible_range(book_name, 1, 1, get_chap_ct(bk), get_v_ct(bk, get_chap_ct(bk)))
                         master_range.extend(range)
+                    # When we have more fine grained information
+                    else:
+                        start_chap = 0
+                        sections = re.split(' ?; ?', book_contents)
+                        for section in sections:
+                            got_chap = False
+                            parts = re.split(' ?, ?', section)
+
+                            # This is a really stupid thing to prevent an error in 20311
+                            skip = False
+                            for part in parts:
+                                try:
+                                    n = int(part)
+                                    if n > 80:
+                                        skip = True
+                                except:
+                                    pass
+                            if skip:
+                                break
+                            # I absolutely hate it (above) but it works
+
+                            for part in parts:
+                                # For single chapter books, mark the implicit single chapter
+                                if bk == 18 or bk == 24 or bk == 25 or bk == 26:
+                                    start_chap = 1
+                                    got_chap = True
+                                
+                                end_chap = start_chap   # The last hit chapter must always be updated
+                                # When there is a range
+                                if part.__contains__('-'):
+                                    limits = re.split(' ?- ?', part)
+                                    start = limits[0]
+                                    end = limits[1]
+                                    if start.__contains__(':'):
+                                        ref = start.split(':')
+                                        start_chap = int(ref[0])
+                                        got_chap = True
+                                        start_verse = int(ref[1])
+                                    else:
+                                        if got_chap:
+                                            start_verse = int(start)
+                                        else:
+                                            start_chap = int(start)
+                                            start_verse = 1
+
+                                    if end.__contains__(':'):
+                                        ref = end.split(':')
+                                        end_chap = int(ref[0])
+                                        end_verse = int(ref[1])
+                                    else:
+                                        # Handle the case where 'fin' is present instead of a number
+                                        if end == '0000':
+                                            end_chap = get_chap_ct(bk)
+                                            end_verse = get_v_ct(bk, end_chap)
+                                        else:
+                                            if got_chap:
+                                                end_chap = start_chap
+                                                end_verse = int(end)
+                                            else:
+                                                end_chap = int(end)
+                                                end_verse = get_v_ct(bk, end_chap)
+                                    range = get_bible_range(book_name, start_chap, start_verse, end_chap, end_verse)
+                                    start_chap = end_chap   # Move start chap forward if end_chap has crossed a chapter barrier
+                                # When there is not a range
+                                else:
+                                    # Just get one verse
+                                    if part.__contains__(':'):
+                                        # With a chapter indicator
+                                        cv = part.split(':')
+                                        start_chap = int(cv[0])
+                                        start_verse = int(cv[1])
+                                        got_chap = True
+                                        range = [(books[book_name], start_chap, start_verse)]
+                                    # A single number
+                                    else:
+                                        # A verse (without a chapter indicator)
+                                        if got_chap:
+                                            start_verse = int(part)
+                                            range = [(books[book_name], start_chap, start_verse)]
+                                        # A chapter
+                                        else:
+                                            start_chap = int(part)
+                                            end_chap = start_chap
+                                            start_verse = 1
+                                            end_verse = get_v_ct(bk, end_chap)
+                                            range = get_bible_range(book_name, start_chap, start_verse, end_chap, end_verse)
+
+                                master_range.extend(range)
+                
+                # Handle random words in the entry
+                except KeyError:
+                    print(f'{book_name} is not a book')
+
+def regex_co_range(important_rows, master_range):
+    ...
+    # Probably, scan through all and apply a regex that removes things like eK: (anything left of a colon)
+    # I think it might be good just to remove all spaces
+        # The regex should maybe be ^\w:[a-z]
+    # Take the longest of these, and split at book or split at category (eapr)
+    # If several are the same length, just do all of them
+    # Ugly thing at 30309 with ap:a R-Tt
 
 # This will return a list of triples of (book, chap, verse) in ascending order
 def get_bible_range(bn, sc, sv, ec, ev):
@@ -656,6 +732,11 @@ def get_bible_range(bn, sc, sv, ec, ev):
             b_range.append((book, ec, v))
 
     return b_range
+
+# This adds a range of contents to a manuscript's dictionary
+def add_range(master_range, ms_dict):
+    for b, c, v in master_range:
+        ensure_existence(ms_dict, b, c, '', v, v)
 
 if __name__ == "__main__":
     main()
