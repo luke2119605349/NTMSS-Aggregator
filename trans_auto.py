@@ -4,8 +4,9 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException as Stale
 from time import sleep
-import re
 import pickle
+import re
+import sys
 
 list_frame = 'remote_iframe_350290540'
 info_frame = 'remote_iframe_903780713'
@@ -20,6 +21,7 @@ books = {
     'Lk': 3,
 	'Luke': 3,
     'J': 4,
+    'Jn': 4,
 	'John': 4,
     'Ac': 5,
     'Act': 5,
@@ -147,7 +149,7 @@ def main():
     all_mss = dict()
     # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
     # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
-    get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
+    # get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
     get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
     get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
     '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
@@ -317,10 +319,11 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                         linkspot = ths[0]
                         link = linkspot.find_elements(By.TAG_NAME, "a")[0]
                         
-                        important_rows = {'Content Overview' : dict(), 'Content' : dict(), 'GMO' : dict()}
+                        important_rows = {'Content Overview' : dict(), 'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
                         gmo = 0
                         co = 0
                         c = 0
+                        bc = 0
                         for row in contents:
                             # Get biblical content info
                             if row.text[:16] == "Content Overview":
@@ -332,6 +335,9 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                             elif row.text[:30] == "General Manuscript Observation":
                                 important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
                                 gmo += 1
+                            elif row.text.__contains__('Biblical Content'):
+                                important_rows.get('BC').update({bc : re.sub('Biblical Content ?', '', row.text)})
+                                bc += 1
 
                             # Get year info
                             if row.text.__contains__('Origin Year Early'):
@@ -343,7 +349,30 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                         # REGEXS to apply to GMO
                         regex_range(important_rows, 'GMO', master_range)                   
                         if len(master_range) == 0:
-                            print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
+                        #     print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
+                        #     with open('regexcorange.txt','a') as f:
+                        #         o = sys.stdout
+                        #         sys.stdout = f
+                        #         print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
+                        #         sys.stdout = o
+                            if ms_name[0] == 'L':
+                                # TODO TODO TODO TODO fix this whole thing, I confused myself
+                                ...
+                                if ms_dict.get('yr_end') > 600:
+                                    ...
+                                    # regex BC TODO
+                                else:
+                                    if ms_name.__contains__('2210'):
+                                        # regex BC (this is one exception)
+                                        ...
+                                    pass
+                                    # Do this to not mess up the contents on the few early lectionaries.
+                                    # The INTF contains pages for all except L1354, so the contents will be retrieved later in get_pages()
+                            else:
+                                ...
+                                # regex co range TODO
+                        print(ms_name, important_rows.get('BC'))
+
                         # REGEXS to apply to CO
 
                         # REGEXS to apply to C
@@ -358,7 +387,16 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                         # Try reloading if there is a stale element
                         contents = info.find_elements(By.TAG_NAME, "tr")
                     except Exception as e:
-                        e
+                        # For 070, we end up here because of annoying inconsistencies in GMO
+                        # This is a spaghetti solution where we just use 'Contents'
+                        if ms_name == '070':
+                            # This still doesn't work but skip for now!! TODO TODO TODO
+                            regex_range(important_rows, 'Content', master_range)
+                            add_range(master_range, ms_dict)
+                            link.click()
+                            stale = False
+                        else:
+                            e
                 
                 # Get pages and return control to here
                 '''get_pages(driver, ms_dict)'''
@@ -699,16 +737,20 @@ def regex_range(important_rows, elem, master_range):
                 
                 # Handle random words in the entry
                 except KeyError:
-                    print(f'{book_name} is not a book')
+                    pass
+                    # print(f'{book_name} is not a book')
 
 def regex_co_range(important_rows, master_range):
     ...
+    # It's probably good to check first to see if the format is like GMO (more specific)
+
     # Probably, scan through all and apply a regex that removes things like eK: (anything left of a colon)
     # I think it might be good just to remove all spaces
         # The regex should maybe be ^\w:[a-z]
     # Take the longest of these, and split at book or split at category (eapr)
     # If several are the same length, just do all of them
     # Ugly thing at 30309 with ap:a R-Tt
+
 
 # This will return a list of triples of (book, chap, verse) in ascending order
 def get_bible_range(bn, sc, sv, ec, ev):
