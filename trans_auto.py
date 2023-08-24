@@ -8,101 +8,39 @@ import pickle
 import re
 import sys
 
+# The INTF uses these different iFrame IDs throughout
 list_frame = 'remote_iframe_350290540'
 info_frame = 'remote_iframe_903780713'
+
+# Structure containing various forms of book names associated with their number
 books = {
-    'Mt': 1,
-	'Matt': 1,
-    'Matthew': 1,
-    'Mc': 2,
-    'Mk': 2,
-	'Mark': 2,
-    'L': 3,
-    'Lk': 3,
-	'Luke': 3,
-    'J': 4,
-    'Jn': 4,
-	'John': 4,
-    'Ac': 5,
-    'Act': 5,
-	'Acts': 5,
-    'R': 6,
-	'Rom': 6,
-	'Romans': 6,
-    '1K': 7,
-    '1 K': 7,
-	'1Cor': 7,
-	'1st Corinthians': 7,
-    '2K': 8,
-    '2 K': 8,
-	'2Cor': 8,
-	'2nd Corinthians': 8,
-    'G': 9,
-	'Gal': 9,
-	'Galatians': 9,
-    'E': 10,
-	'Eph': 10,
-	'Ephesians': 10,
-    'Ph': 11,
-	'Phil': 11,
-	'Philippians': 11,
-    'Kol': 12,
-	'Col': 12,
-	'Colossians': 12,
-    '1Th': 13,
-    '1 Th': 13,
-	'1Thess': 13,
-	'1st Thessalonians': 13,
-    '2Th': 14,
-    '2 Th': 14,
-	'2Thess': 14,
-	'2nd Thessalonians': 14,
-    '1T': 15,
-    '1 T': 15,
-	'1Tim': 15,
-    '1 Tim': 15,
-	'1st Timothy': 15,
-    '2T': 16,
-    '2 T': 16,
-	'2Tim': 16,
-    '2 Tim': 16,
-	'2nd Timothy': 16,
-    'Tt': 17,
-	'Titus': 17,
-    'Phm': 18,
-	'Phlm': 18,
-	'Philemon': 18,
-    'H': 19,
-	'Heb': 19,
-	'Hebrews': 19,
-    'Jc': 20,
-	'Jas': 20,
-	'James': 20,
-    '1P': 21,
-    '1 P': 21,
-	'1Pet': 21,
-	'1st Peter': 21,
-    '2P': 22,
-    '2 P': 22,
-	'2Pet': 22,
-	'2nd Peter': 22,
-    '1J': 23,
-    '1 J': 23,
-	'1John': 23,
-	'1st John': 23,
-    '2J': 24,
-    '2 J': 24,
-	'2John': 24,
-	'2nd John': 24,
-    '3J': 25,
-    '3 J': 25,
-	'3John': 25,
-	'3rd John': 25,
-    'Jd': 26,
-	'Jude': 26,
-    'Ap': 27,
-	'Rev': 27,
-	'Revelation': 27,
+    'Mt': 1, 'Matt': 1, 'Matthew': 1,
+    'Mc': 2, 'Mk': 2, 'Mark': 2,
+    'L': 3, 'Lk': 3, 'Luke': 3,
+    'J': 4, 'Jn': 4, 'John': 4,
+    'Ac': 5, 'Act': 5, 'Acts': 5,
+    'R': 6, 'Rom': 6, 'Romans': 6,
+    '1K': 7, '1 K': 7, '1Cor': 7, '1st Corinthians': 7,
+    '2K': 8, '2 K': 8, '2Cor': 8, '2nd Corinthians': 8,
+    'G': 9,	'Gal': 9, 'Galatians': 9,
+    'E': 10, 'Eph': 10, 'Ephesians': 10,
+    'Ph': 11, 'Phil': 11, 'Philippians': 11,
+    'Kol': 12, 'Col': 12, 'Colossians': 12,
+    '1Th': 13, '1 Th': 13, '1Thess': 13, '1st Thessalonians': 13,
+    '2Th': 14, '2 Th': 14, '2Thess': 14, '2nd Thessalonians': 14,
+    '1T': 15, '1 T': 15, '1Tim': 15, '1 Tim': 15, '1st Timothy': 15,
+    '2T': 16, '2 T': 16, '2Tim': 16, '2 Tim': 16, '2nd Timothy': 16,
+    'Tt': 17, 'Titus': 17,
+    'Phm': 18, 'Phlm': 18, 'Philemon': 18,
+    'H': 19, 'Heb': 19, 'Hebrews': 19,
+    'Jc': 20, 'Jas': 20, 'James': 20,
+    '1P': 21, '1 P': 21, '1Pet': 21, '1st Peter': 21,
+    '2P': 22, '2 P': 22, '2Pet': 22, '2nd Peter': 22,
+    '1J': 23, '1 J': 23, '1John': 23, '1st John': 23,
+    '2J': 24, '2 J': 24, '2John': 24, '2nd John': 24,
+    '3J': 25, '3 J': 25, '3John': 25, '3rd John': 25,
+    'Jd': 26, 'Jude': 26,
+    'Ap': 27, 'Rev': 27, 'Revelation': 27,
 }
 
 # Structure containing the number of verses in each chapter
@@ -137,12 +75,15 @@ chap_verses = [
     [20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21]
 ]
 
+# Get the number of verses in a given chapter in a given book
 def get_v_ct(book, chap):
     return chap_verses[book-1][chap-1]
 
+# Get the number of chapters in a given book
 def get_chap_ct(book):
     return len(chap_verses[book-1])
 
+# TODO uncomment things
 def main():
     driver = webdriver.Chrome()
     dup_dict = {'forward': dict(), 'backward': dict()}
@@ -150,8 +91,9 @@ def main():
     # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
     # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
     # get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
-    get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
-    get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
+    # get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
+    # TODO compare the 'edition' field for Talismans/Ostraca in get_cntr so there aren't duplicate mss
+    get_mss(driver, 5, 520023, 520030, dup_dict, all_mss)
     '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
     # ID 90056 (T789) appears to be a talisman containing John 11 and I indexed and transcribed it
     # Save dictionaries
@@ -302,6 +244,7 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
 
             
             # Click ms to get its contents if it isn't designated as REMOVED
+            # TODO (maybe don't have this in an else and relink everything correctly later??)
             else:
                 info[1].click()
                 driver.switch_to.default_content()
@@ -345,37 +288,54 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                             if row.text.__contains__('Origin Year Late'):
                                 ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
 
+                        # Annoying spaghetti solution to a problem caused by inconsistencies in the format of GMO in 070
+                        if ms_name == '070':
+                            # Just reset GMO to be the correct contents manually
+                            important_rows.update({'GMO' : {0 : 'L 3,19-30; 8,13-19.55-9,9; 9,9-17; 10,21-30; 10,30-39; 10,40-11,6; 11,24-42; 12,5-14; 12,15-13,32; 16,4-12; 21,30-22,2; 22,54-65; 23,4-24,26; J 3,23-32; 5,22-42; 7,3-12; 8,13-22; 8,33-42; 8,42-9,39; 11,48-56; 12,27-36.46-13,4'}})
+                        
                         master_range = []
-                        # REGEXS to apply to GMO
-                        regex_range(important_rows, 'GMO', master_range)                   
+
+                        # Get range from GMO (catch errors)
+                        try:
+                            regex_range(important_rows, 'GMO', master_range)
+                            # If it fails, clear it out and continue on (address later if needed)
+                        except Exception as e:
+                            with open('errlog.txt','a') as f:
+                                f.write(f'Regex GMO failed in {ms_name} with {e} in: \n\t{important_rows.get("GMO")}\n\n')
+                            master_range = []
+
+                        # For ones that return nothing, try going through 'Content' or 'Content Overview' or 'Biblical Content'
                         if len(master_range) == 0:
-                        #     print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
-                        #     with open('regexcorange.txt','a') as f:
-                        #         o = sys.stdout
-                        #         sys.stdout = f
-                        #         print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
-                        #         sys.stdout = o
+                            print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'), important_rows.get('BC'))
+                            with open('regexcorange.txt','a') as f:
+                                o = sys.stdout
+                                sys.stdout = f
+                                print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
+                                sys.stdout = o
+
+                            # Lectionary contents getting ('Biblical Content')
                             if ms_name[0] == 'L':
-                                # TODO TODO TODO TODO fix this whole thing, I confused myself
-                                ...
-                                if ms_dict.get('yr_end') > 600:
-                                    ...
-                                    # regex BC TODO
-                                else:
-                                    if ms_name.__contains__('2210'):
-                                        # regex BC (this is one exception)
-                                        ...
-                                    pass
+                                # Spaghetti to handle a few early edge cases
+                                # NOTE, because of how confusing it is to record what lectionaries contain, this part will be inherently dubious
+                                if ms_name == 'L1604' or ms_name == 'L1043' or ms_name == 'L2210':
                                     # Do this to not mess up the contents on the few early lectionaries.
-                                    # The INTF contains pages for all except L1354, so the contents will be retrieved later in get_pages()
+                                    pass
+                                elif ms_name == 'L1354':
+                                    # The INTF does not contain pages for L1354, so the contents will be hardcoded here
+                                    important_rows.update({'GMO' : {0: 'Mt 3; Mc 1'}})
+                                    regex_range(important_rows, 'GMO', master_range)
+                                else:
+                                    # Normal lectionary contents getting
+                                    regex_bc(important_rows.get('BC'), master_range)
+
+                            # Special case for 0212
+                            elif ms_name == '0212':
+                                # Just skip now because it will be gotten later in get_cntr_class
+                                pass
+                            
+                            # Non-lectionary contents getting
                             else:
-                                ...
-                                # regex co range TODO
-                        print(ms_name, important_rows.get('BC'))
-
-                        # REGEXS to apply to CO
-
-                        # REGEXS to apply to C
+                                regex_co_range(important_rows, master_range)
 
                         # Update dictionary for the manuscript with the range of contents
                         add_range(master_range, ms_dict)
@@ -383,20 +343,17 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                         # Click link, get page contents and transcription, and return control
                         '''link.click()'''
                         stale = False
+                    
+                    # Try reloading if there is a stale element
                     except Stale as e:
-                        # Try reloading if there is a stale element
                         contents = info.find_elements(By.TAG_NAME, "tr")
+
+                    # Log other errors and move on
                     except Exception as e:
-                        # For 070, we end up here because of annoying inconsistencies in GMO
-                        # This is a spaghetti solution where we just use 'Contents'
-                        if ms_name == '070':
-                            # This still doesn't work but skip for now!! TODO TODO TODO
-                            regex_range(important_rows, 'Content', master_range)
-                            add_range(master_range, ms_dict)
-                            link.click()
-                            stale = False
-                        else:
-                            e
+                        print(f'Error in {ms_name} (logged)')
+                        with open('errlog.txt','a') as f:
+                            f.write(f'An error occurred at {ms_name}: {e}\n\n')
+                        stale = False
                 
                 # Get pages and return control to here
                 '''get_pages(driver, ms_dict)'''
@@ -467,7 +424,8 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
         apoc_flag = ""
     else:
         apoc_flag = "&userName=Apokalypse%20Edition"
-    # IGNTP flag??
+    # TODO IGNTP flag??
+    # TODO if a flag has nothing, try the main page
 
     page = f'https://ntvmr.uni-muenster.de/community/vmr/api/transcript/get/?docID={ms_id}&pageID={page_num}&format=html{apoc_flag}'
     driver.execute_script(f'window.open("{page}")')
@@ -575,6 +533,7 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
     driver.switch_to.window(driver.window_handles[1])
     driver.switch_to.frame(list_frame)
 
+# Associate an INTF page number and/or transcription with a verse in a manuscript (it is assumed that the verse is already in its contents, but if not it adds it)
 def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
     try:
         concat = ms_dict.get(book).get(chap).get(verse).get('t')
@@ -594,6 +553,7 @@ def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
             ensure_existence(ms_dict, book, chap, text, verse, verse)
             add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents)
 
+# Make sure that a verse exists in a manuscript (with or without a transcription)
 def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
     # Ensure book exists
     if ms_dict.get(book) is None:
@@ -605,7 +565,7 @@ def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
     for v in range(v_st, v_end+1):
         ms_dict.get(book).get(chap).update({v : {'t': text}})
 
-# This takes something from the important_rows dictionary and does regex and range creation on it
+# This takes something (GMO) from the important_rows dictionary and does regex and range creation on it
 def regex_range(important_rows, elem, master_range):
     for things in important_rows.get(elem):
         thing = important_rows.get(elem).get(things)
@@ -740,17 +700,24 @@ def regex_range(important_rows, elem, master_range):
                     pass
                     # print(f'{book_name} is not a book')
 
+# This takes Content or Content Overview from important_rows and does regex and range creation on it
 def regex_co_range(important_rows, master_range):
     ...
     # It's probably good to check first to see if the format is like GMO (more specific)
 
-    # Probably, scan through all and apply a regex that removes things like eK: (anything left of a colon)
+    # Probably, scan through all and apply a regex that removes things like ePK: (anything left of a colon)
     # I think it might be good just to remove all spaces
         # The regex should maybe be ^\w:[a-z]
     # Take the longest of these, and split at book or split at category (eapr)
     # If several are the same length, just do all of them
     # Ugly thing at 30309 with ap:a R-Tt
 
+# This is for creating a range for lectionaries (pretty simple)
+def regex_bc(bc, master_range):
+    if re.search(r'Gosp', bc, re.IGNORECASE) is not None:
+        regex_co_range({'CO' : {0 : 'e'}}, master_range)
+    if re.search(r'Apost', bc, re.IGNORECASE) is not None:
+        regex_co_range({'CO' : {0 : 'ap'}}, master_range)
 
 # This will return a list of triples of (book, chap, verse) in ascending order
 def get_bible_range(bn, sc, sv, ec, ev):
