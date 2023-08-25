@@ -262,17 +262,13 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                         linkspot = ths[0]
                         link = linkspot.find_elements(By.TAG_NAME, "a")[0]
                         
-                        important_rows = {'Content Overview' : dict(), 'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
+                        important_rows = {'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
                         gmo = 0
-                        co = 0
                         c = 0
                         bc = 0
                         for row in contents:
                             # Get biblical content info
-                            if row.text[:16] == "Content Overview":
-                                important_rows.get('Content Overview').update({co : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                                co += 1
-                            elif row.text[:7] == "Content":
+                            if row.text[:7] == "Content":
                                 important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
                                 c += 1
                             elif row.text[:30] == "General Manuscript Observation":
@@ -297,7 +293,7 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
 
                         # Get range from GMO (catch errors)
                         try:
-                            regex_range(important_rows, 'GMO', master_range)
+                            regex_gmo_range(important_rows, master_range)
                             # If it fails, clear it out and continue on (address later if needed)
                         except Exception as e:
                             with open('errlog.txt','a') as f:
@@ -306,11 +302,11 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
 
                         # For ones that return nothing, try going through 'Content' or 'Content Overview' or 'Biblical Content'
                         if len(master_range) == 0:
-                            print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'), important_rows.get('BC'))
+                            print(ms_name, important_rows.get('Content'), important_rows.get('BC'))
                             with open('regexcorange.txt','a') as f:
                                 o = sys.stdout
                                 sys.stdout = f
-                                print(ms_name, important_rows.get('Content'), important_rows.get('Content Overview'))
+                                print(ms_name, important_rows.get('Content'))
                                 sys.stdout = o
 
                             # Lectionary contents getting ('Biblical Content')
@@ -323,7 +319,7 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                                 elif ms_name == 'L1354':
                                     # The INTF does not contain pages for L1354, so the contents will be hardcoded here
                                     important_rows.update({'GMO' : {0: 'Mt 3; Mc 1'}})
-                                    regex_range(important_rows, 'GMO', master_range)
+                                    regex_gmo_range(important_rows, master_range)
                                 else:
                                     # Normal lectionary contents getting
                                     regex_bc(important_rows.get('BC'), master_range)
@@ -565,10 +561,10 @@ def ensure_existence(ms_dict, book, chap, text, v_st, v_end):
     for v in range(v_st, v_end+1):
         ms_dict.get(book).get(chap).update({v : {'t': text}})
 
-# This takes something (GMO) from the important_rows dictionary and does regex and range creation on it
-def regex_range(important_rows, elem, master_range):
-    for things in important_rows.get(elem):
-        thing = important_rows.get(elem).get(things)
+# This takes GMO from the important_rows dictionary and does regex and range creation on it
+def regex_gmo_range(important_rows, master_range):
+    for things in important_rows.get('GMO'):
+        thing = important_rows.get('GMO').get(things)
         thing = re.sub(r'\( ?\? ?\)', '', thing)                 # Remove '(?)' marks
         thing = re.sub(r'([,\.:;])? ?\([^)]*\) ?;?', ';', thing) # Remove parenthesized parts (with potential surrounding spaces and leading punctuation)
         thing = re.sub(r'([\.,:;])*$|^([\.,:;])*', '', thing)    # Remove punctation at the beginning or end of lines
@@ -700,17 +696,75 @@ def regex_range(important_rows, elem, master_range):
                     pass
                     # print(f'{book_name} is not a book')
 
-# This takes Content or Content Overview from important_rows and does regex and range creation on it
+# This takes Content/Content Overview from important_rows and does regex and range creation on it
 def regex_co_range(important_rows, master_range):
-    ...
-    # It's probably good to check first to see if the format is like GMO (more specific)
+    content_list = []
+    add_these = []
+    gmo_like = False
+    for item in important_rows.get('Content'):
+        # Check first to see if the format is like GMO (more specific)
+        if re.match(r'\d? ?[A-Za-z]+ \d', item) is not None:
+            gmo_like = True
+            important_rows.update({'GMO' : {0: item}})
+            regex_gmo_range(important_rows, master_range)
+            break
+        
+        # Scan through all and apply a regex that removes things like ePK: (anything to the left of a colon)
+        else:
+            contents = re.sub(' |†', '', item)                          # Remove all spaces and † characters
+            contents = re.sub(r'\([^)]*\)', '', contents)               # Remove anything between parens
+            contents = re.sub(r'(e|a|p|r)(P|K)', '\1', contents)        # Remove info about how a category (eapr) is contained (PK)
+            contents = re.sub(r':\?', '', contents)                     # Remove ':?' so that the next one isn't messed up
+            must_do = True if contents.__contains__(':') else False     # Despite potentially longer strings being present for each range item,
+                                                                            # do this no matter what is there is more specific info (denoted by colon)
+            contents = re.sub(r'(e|a|p|r)+:', '', contents)             # Remove anything to the left of a colon as well as the colon
+            contents = re.sub(r'1-3J', r'1J2J3J', contents)             # Replace 1-3J with 1J2J3J
+            contents = re.sub(r'R-Tt', r'R1K2KGEPhK1Th2Th1T2TTt')       # A manual fix of a thing in 30309
+            if contents != '':                                          # Append values to one of the lists
+                if must_do:
+                    add_these.append(contents)                          # These must be done unconditionally
+                else:
+                    content_list.append(contents)                       # These should be compared for length below
 
-    # Probably, scan through all and apply a regex that removes things like ePK: (anything left of a colon)
-    # I think it might be good just to remove all spaces
-        # The regex should maybe be ^\w:[a-z]
-    # Take the longest of these, and split at book or split at category (eapr)
-    # If several are the same length, just do all of them
-    # Ugly thing at 30309 with ap:a R-Tt
+    # Return if there was a GMO like range in here, otherwise search through the remaining
+    if gmo_like:
+        return
+
+    # Take the longest of these (if several are the same length, just do all of them) as well as all must_dos
+    longest = (0, None)
+    for contents in content_list:
+        if len(contents) > longest[0]:
+            longest = (len(contents), contents)
+        if len(contents) == longest[0]:
+            temp = longest + (contents)
+            longest = temp
+
+    # Add the longest to the list of things to add
+    for long in longest[1:]:
+        add_these.append(long)
+
+    # Go through the list of things to add and actually create a Bible range
+    for add in add_these:
+        # Split at book or split at category (eapr)
+        ranges = re.split(r'(e|a|p|r)|(\d?[A-Z][a-z]*)', add)
+        # TODO make sure that ranges has what I want (it might capture both groups????)
+        for b_range in ranges:
+            # Categories
+            if b_range == 'a':
+                add_several_books(5, 5)
+                add_several_books(20, 26)
+            elif b_range == 'e':
+                add_several_books(1, 4)
+            elif b_range == 'p':
+                # Includes Hebrews
+                add_several_books(6, 19)
+            elif b_range == 'r':
+                add_several_books(27, 27)
+            
+            # Individual books
+            else:
+                bk = books[b_range]
+                add_several_books(bk, bk)
 
 # This is for creating a range for lectionaries (pretty simple)
 def regex_bc(bc, master_range):
@@ -720,8 +774,8 @@ def regex_bc(bc, master_range):
         regex_co_range({'CO' : {0 : 'ap'}}, master_range)
 
 # This will return a list of triples of (book, chap, verse) in ascending order
-def get_bible_range(bn, sc, sv, ec, ev):
-    book = books[bn]
+def get_bible_range(bn, sc, sv, ec, ev, is_num=False):
+    book = bn if is_num else books[bn]
     b_range = []
 
     # Get verses within the current chapter
@@ -746,6 +800,13 @@ def get_bible_range(bn, sc, sv, ec, ev):
 def add_range(master_range, ms_dict):
     for b, c, v in master_range:
         ensure_existence(ms_dict, b, c, '', v, v)
+
+# This adds several books at once (intended to be used for an entire category eapr)
+def add_several_books(start_book, stop_book):
+    b_range = []
+    for bk in range(start_book, stop_book+1):
+        b_range.extend(get_bible_range(bk, 1, 1, get_chap_ct(bk), get_v_ct(bk, get_chap_ct(bk)), is_num=True))
+    return b_range
 
 if __name__ == "__main__":
     main()
