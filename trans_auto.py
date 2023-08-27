@@ -4,6 +4,7 @@ from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException as Stale
 from time import sleep
+from traceback import print_exc
 import pickle
 import re
 
@@ -84,18 +85,20 @@ def get_chap_ct(book):
 
 # This is the master function that gets all the ms data (mss, date ranges, contents, transcriptions, duplicates, page numbers, duplicate information) from the NTVMR and CNTR
 def gather_data():
-    # TODO uncomment things
     driver = webdriver.Chrome()
     dup_dict = {'forward': dict(), 'backward': dict()}
     all_mss = dict()
-    # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss)
-    # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss)
-    # get_mss(driver, 3, 30001, 33018, dup_dict, all_mss)
-    # get_mss(driver, 4, 40001, 42551, dup_dict, all_mss)
-    # TODO compare the 'edition' field for Talismans/Ostraca in get_cntr so there aren't duplicate mss
-    # get_mss(driver, 5, 510001, 520030, dup_dict, all_mss)
+    ed_mss = dict()
+    # get_mss(driver, 1, 10001, 10141, dup_dict, all_mss, ed_mss)
+    # get_mss(driver, 2, 20001, 20324, dup_dict, all_mss, ed_mss)
+    # get_mss(driver, 3, 30001, 33018, dup_dict, all_mss, ed_mss)
+    # get_mss(driver, 4, 40001, 42551, dup_dict, all_mss, ed_mss)
+    get_mss(driver, 5, 510001, 520030, dup_dict, all_mss, ed_mss)
+
+    get_cntr_mss(driver, dup_dict, all_mss, 2, 2, ed_mss)
     print()
-    '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2)
+    
+    '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2, ed_mss)
     # ID 90056 (T789) appears to be a talisman containing John 11 and I indexed and transcribed it
     # Save dictionaries
     with open(f'dup_dict.pkl','wb') as f:
@@ -104,13 +107,13 @@ def gather_data():
         pickle.dump(all_mss, f)'''
 
 # Get all manuscripts from the Center for New Testament Restoration
-def get_cntr_mss(driver, dup_dict, all_mss, first_class, last_class):
+def get_cntr_mss(driver, dup_dict, all_mss, first_class, last_class, ed_mss):
     driver.get("https://greekcntr.org/manuscripts/index.htm")
     for i in range(first_class, last_class+1):
-        cntr_class(i, driver, dup_dict, all_mss)
+        cntr_class(i, driver, dup_dict, all_mss, ed_mss)
 
 # Get a class of manuscripts from the CNTR
-def cntr_class(i, driver, dup_dict, all_mss):
+def cntr_class(i, driver, dup_dict, all_mss, ed_mss):
     Select(driver.find_element(value='classes')).select_by_value(str(i))
     witnesses = Select(driver.find_element(value='witnesses'))
     for witness in witnesses.options:
@@ -133,6 +136,12 @@ def cntr_class(i, driver, dup_dict, all_mss):
                 if ga is not None:
                     aka = re.search(r'[PO0]\d+', ga.group()).group()
                     break
+                
+                # This compares edition numbers in here with those found in the NTVMR (relevant for anything in class 2 which is an ostracon/talisman) and links connected mss
+                ed = re.sub(r'[^A-Za-z0-9]', '', alias)
+                src = ed_mss.get(ed)
+                if src is not None:
+                    aka = src
 
             # Only get the transcription if we don't have either the transcription or the manuscript
             if all_mss.get(aka) is None:
@@ -194,7 +203,7 @@ def cntr_class(i, driver, dup_dict, all_mss):
             driver.switch_to.default_content()
 
 # Get all manuscripts from the NTVMR (specified by type and upper and lower bounds)
-def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
+def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss, ed_mss):
     driver.get("https://ntvmr.uni-muenster.de/catalog?docID="+str(type))
     driver.switch_to.frame(list_frame)
 
@@ -217,6 +226,7 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
             entry = re.sub('l ', 'L', re.sub('DEL', '', info[1].accessible_name.strip()))
             ms_name = entry.split(' ')[0]
             print(ms_name)
+            sleep(1)
             
             # For linking duplicates or combined mss:
             # The format is either "Removed; Combined; See: MSNUM"
@@ -247,129 +257,142 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss):
                 dup_dict.get('forward').update({source_ms : curr_dups_at_ms})
                 dup_dict.get('backward').update({ms_name : source_ms})
 
-            
-            # Click ms to get its contents if it isn't designated as REMOVED
-            # TODO (maybe don't have this in an else and relink everything correctly later??)
-            else:
-                info[1].click()
-                driver.switch_to.default_content()
-                driver.switch_to.frame(info_frame)
-                info = driver.find_element(value="content")
+            # Click ms to get its contents, get contents, get pages, get transcript (drill down)
+            info[1].click()
+            sleep(1)
+            driver.switch_to.default_content()
+            driver.switch_to.frame(info_frame)
+            info = driver.find_element(value="content")
+            contents = info.find_elements(By.TAG_NAME, "tr")
+            while len(contents) < 10:
                 contents = info.find_elements(By.TAG_NAME, "tr")
-                while len(contents) < 10:
-                    contents = info.find_elements(By.TAG_NAME, "tr")
-                sleep(0.2)
-                stale = True
-                while stale:
+            sleep(0.2)
+            stale = True
+            while stale:
+                try:
+                    toprow = contents[0]
+                    ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
+                    linkspot = ths[0]
+                    link = linkspot.find_elements(By.TAG_NAME, "a")[0]
+                    
+                    important_rows = {'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
+                    gmo = 0
+                    c = 0
+                    bc = 0
+                    for row in contents:
+                        # Get biblical content info
+                        if row.text[:7] == "Content":
+                            important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                            c += 1
+                        elif row.text[:30] == "General Manuscript Observation":
+                            important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                            gmo += 1
+                        elif row.text.__contains__('Biblical Content'):
+                            important_rows.get('BC').update({bc : re.sub('Biblical Content ?', '', row.text)})
+                            bc += 1
+
+                        # Get year info
+                        if row.text.__contains__('Origin Year Early'):
+                            ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+                        if row.text.__contains__('Origin Year Late'):
+                            ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+
+                        # Get Edition info to compare Talismans and Ostraca with CNTR things:
+                        if row.text.__contains__('Edition'):
+                            ed_mss.update({re.sub('(Edition ?)|([^A-Za-z0-9])', '', row.text) : ms_name})
+
+                    # Annoying spaghetti solution to a problem caused by inconsistencies in the format of GMO in 070
+                    if ms_name == '070':
+                        # Just reset GMO to be the correct contents manually
+                        important_rows.update({'GMO' : {0 : 'L 3,19-30; 8,13-19.55-9,9; 9,9-17; 10,21-30; 10,30-39; 10,40-11,6; 11,24-42; 12,5-14; 12,15-13,32; 16,4-12; 21,30-22,2; 22,54-65; 23,4-24,26; J 3,23-32; 5,22-42; 7,3-12; 8,13-22; 8,33-42; 8,42-9,39; 11,48-56; 12,27-36.46-13,4'}})
+                    
+                    master_range = []
+
+                    # Get range from GMO (catch errors)
                     try:
-                        toprow = contents[0]
-                        ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
-                        linkspot = ths[0]
-                        link = linkspot.find_elements(By.TAG_NAME, "a")[0]
-                        
-                        important_rows = {'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
-                        gmo = 0
-                        c = 0
-                        bc = 0
-                        for row in contents:
-                            # Get biblical content info
-                            if row.text[:7] == "Content":
-                                important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                                c += 1
-                            elif row.text[:30] == "General Manuscript Observation":
-                                important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                                gmo += 1
-                            elif row.text.__contains__('Biblical Content'):
-                                important_rows.get('BC').update({bc : re.sub('Biblical Content ?', '', row.text)})
-                                bc += 1
-
-                            # Get year info
-                            if row.text.__contains__('Origin Year Early'):
-                                ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
-                            if row.text.__contains__('Origin Year Late'):
-                                ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
-
-                        # Annoying spaghetti solution to a problem caused by inconsistencies in the format of GMO in 070
-                        if ms_name == '070':
-                            # Just reset GMO to be the correct contents manually
-                            important_rows.update({'GMO' : {0 : 'L 3,19-30; 8,13-19.55-9,9; 9,9-17; 10,21-30; 10,30-39; 10,40-11,6; 11,24-42; 12,5-14; 12,15-13,32; 16,4-12; 21,30-22,2; 22,54-65; 23,4-24,26; J 3,23-32; 5,22-42; 7,3-12; 8,13-22; 8,33-42; 8,42-9,39; 11,48-56; 12,27-36.46-13,4'}})
-                        
+                        regex_gmo_range(important_rows, master_range, already_formatted=ms_name.__contains__('Os'))
+                        # If it fails, clear it out and continue on (address later if needed)
+                    except Exception as e:
+                        with open('errlog.txt','a') as f:
+                            f.write(f'Regex GMO failed in {ms_name} with {e} in: \n\t{important_rows.get("GMO")}\n\n\n')
+                            print_exc(file=f)
                         master_range = []
 
-                        # Get range from GMO (catch errors)
-                        try:
-                            regex_gmo_range(important_rows, master_range, already_formatted=ms_name.__contains__('Os'))
-                            # If it fails, clear it out and continue on (address later if needed)
-                        except Exception as e:
-                            with open('errlog.txt','a') as f:
-                                f.write(f'Regex GMO failed in {ms_name} with {e} in: \n\t{important_rows.get("GMO")}\n\n')
-                            master_range = []
+                    # For ones that return nothing, try going through 'Content' or 'Content Overview' or 'Biblical Content'
+                    if len(master_range) == 0:
 
-                        # For ones that return nothing, try going through 'Content' or 'Content Overview' or 'Biblical Content'
-                        if len(master_range) == 0:
-
-                            # Lectionary contents getting ('Biblical Content')
-                            if ms_name[0] == 'L':
-                                # Spaghetti to handle a few early edge cases
-                                # NOTE, because of how confusing it is to record what lectionaries contain, this part will be inherently dubious
-                                if ms_name == 'L1604' or ms_name == 'L1043' or ms_name == 'L2210':
-                                    # Do this to not mess up the contents on the few early lectionaries.
-                                    pass
-                                elif ms_name == 'L1354':
-                                    # The INTF does not contain pages for L1354, so the contents will be hardcoded here
-                                    important_rows.update({'GMO' : {0: 'Mt 3; Mc 1'}})
-                                    regex_gmo_range(important_rows, master_range)
-                                else:
-                                    # Normal lectionary contents getting
-                                    regex_bc(important_rows.get('BC'), master_range)
-
-                            # Special case for 0212
-                            elif ms_name == '0212':
-                                # Just skip now because it will be gotten later in get_cntr_class
+                        # Lectionary contents getting ('Biblical Content')
+                        if ms_name[0] == 'L':
+                            # Spaghetti to handle a few early edge cases
+                            # NOTE, because of how confusing it is to record what lectionaries contain, this part will be inherently dubious
+                            if ms_name == 'L1604' or ms_name == 'L1043' or ms_name == 'L2210':
+                                # Do this to not mess up the contents on the few early lectionaries.
                                 pass
-                            
-                            # Non-lectionary contents getting
+                            elif ms_name == 'L1354':
+                                # The INTF does not contain pages for L1354, so the contents will be hardcoded here
+                                important_rows.update({'GMO' : {0: 'Mt 3; Mc 1'}})
+                                regex_gmo_range(important_rows, master_range)
                             else:
-                                regex_co_range(important_rows, master_range)
+                                # Normal lectionary contents getting
+                                regex_bc(important_rows.get('BC'), master_range)
 
-                        # Update dictionary for the manuscript with the range of contents
-                        add_range(master_range, ms_dict)
+                        # Special case for 0212
+                        elif ms_name == '0212':
+                            # Just skip now because it will be gotten later in get_cntr_class
+                            pass
+                        
+                        # Non-lectionary contents getting
+                        else:
+                            regex_co_range(important_rows, master_range)
 
-                        # Click link, get page contents and transcription, and return control
-                        link.click()
-                        stale = False
+                    # Update dictionary for the manuscript with the range of contents
+                    add_range(master_range, ms_dict)
 
-                        # Get pages and return control to here
-                        try:
-                            get_pages(driver, ms_dict)
-                        except Exception as e:
-                            with open('errlog.txt','a') as f:
-                                f.write(f'Error during get_pages in {ms_name}: {e}\n')
-                        driver.switch_to.default_content()
-                        driver.switch_to.frame(list_frame)
-                    
-                    # Try reloading if there is a stale element
-                    except Stale as e:
-                        contents = info.find_elements(By.TAG_NAME, "tr")
+                    # Click link, get page contents and transcription, and return control
+                    link.click()
+                    stale = False
 
-                    # Log other errors and move on
+                    # Get pages and return control to here
+                    try:
+                        get_pages(driver, ms_dict)
                     except Exception as e:
-                        print(f'Error in {ms_name} (logged)')
                         with open('errlog.txt','a') as f:
-                            f.write(f'An error occurred at {ms_name}: {e}\n\n')
-                        stale = False
+                            f.write(f'Error during get_pages in {ms_name}: {e}\n')
+                            print_exc(file=f)
+                    driver.switch_to.default_content()
+                    driver.switch_to.frame(list_frame)
+                
+                # Try reloading if there is a stale element
+                except Stale as e:
+                    contents = info.find_elements(By.TAG_NAME, "tr")
 
-                # Save each dictionary so that progress is saved
-                '''with open(f'mss/{ms_name}.pkl','wb') as f:
-                    pickle.dump(ms_dict, f)'''
-                # Update master dictionary
-                all_mss.update({ms_name : ms_dict})
-    
+                # Log other errors and move on
+                except Exception as e:
+                    print(f'Error in {ms_name} (logged)')
+                    with open('errlog.txt','a') as f:
+                        f.write(f'An error occurred at {ms_name}: {e}\n')
+                        print_exc(file=f)
+                    stale = False
+                    for window in driver.window_handles:
+                        if window != driver.window_handles[0]:
+                            driver.switch_to.window(window)
+                            driver.close()
+                    driver.switch_to.default_content()
+                    driver.switch_to.frame(list_frame)
+
+            # Save each dictionary so that progress is saved
+            '''with open(f'mss/{ms_name}.pkl','wb') as f:
+                pickle.dump(ms_dict, f)'''
+            # Update master dictionary
+            all_mss.update({ms_name : ms_dict})
+            sleep(1)
+
     print(f'Finished getting all manuscripts of type {type}')
 
 # Get all the indexed pages for a given manuscript in the NTVMR
 def get_pages(driver, ms_dict):
     driver.switch_to.window(driver.window_handles[1])
+    sleep(1)
     driver.switch_to.frame(list_frame)
     page_table = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "pagesTable")))
     pages = page_table.find_elements(By.TAG_NAME, "tr")
@@ -395,15 +418,16 @@ def get_pages(driver, ms_dict):
             print(f'\t{page_num}')
             contains = page.find_elements(By.CLASS_NAME, "bibContDisp")[0]
             # Remove things like "inscriptio/subscription" or "commentary" from the thing
-            contents = re.sub(r'\d? ?[A-Za-z]+ ?(inscriptio|subscriptio)[^;]*', '', contains.text)
-            contents = re.sub(r'( |\n|\t)*\+?( |\n|\t)*Commentary[^;]*', '', contents)
+            contents = re.sub(r'\d? ?[A-Za-z]+ ?(inscriptio|subscriptio)[^;]*;?', '', contains.text)
+            contents = re.sub(r'( |\n|\t)*\+?( |\n|\t)*Commentary[^;]*;?', '', contents)
             if contents != "No Index Content" and contents != '':
                 try:
                     get_trans(driver, ms_id, page_num, contents, ms_dict)
                 except Exception as e:
                     with open('errlog.txt','a') as f:
                         f.write(f'Error during get_trans in {ms_id} at page {page_num} ({contents}): {e}\n')
-    
+                        print_exc(file=f)
+
     driver.close()
     driver.switch_to.window(driver.window_handles[0])
     driver.switch_to.frame(list_frame)
@@ -444,6 +468,7 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
     page = f'https://ntvmr.uni-muenster.de/community/vmr/api/transcript/get/?docID={ms_id}&pageID={page_num}&format=html{apoc_flag}'
     driver.execute_script(f'window.open("{page}")')
     driver.switch_to.window(driver.window_handles[2])
+    sleep(1)
     
     #Remove unwanted extraneous parts with Javascript
     driver.execute_script('''
@@ -518,7 +543,8 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
             if v == '':
                 # This happens on page 1750 of 20001 (INTF's fault)
                 with open('errlog.txt','a') as ef:
-                    ef.write(f'Issues on page {page_num} of {ms_id} (blank element in list)\n')
+                    ef.write(f'Issues on page {page_num} of {ms_id} (blank element in list: {vv})\n')
+                    print_exc(file=ef)
                 break
 
             #remove all other line breaks (will be reinserted later)
@@ -566,7 +592,8 @@ def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
         ms_dict.update({'transcription?' : True})
     except Exception as e:
         with open('errlog.txt','a') as ef:
-            ef.write(f'Issues on page {page_num} of {ms_id} (found {book} {chap}:{verse} in a page purporting to contain {contents}): {e}\n')
+            ef.write(f'Potential issues on page {page_num} of {ms_id} (found {book} {chap}:{verse} in a page purporting to contain {contents}): {e}\n')
+            print_exc(file=ef)
         
         # Correct an error in P41 where Acts 20:28-30 is marked as Acts 28:28-30
         if ms_id == 'P41' and book == 5 and chap == 28:
@@ -574,7 +601,7 @@ def add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents):
         
         # Add verse if we find a transcription of it when we previously didn't know about it
         else:
-            ensure_existence(ms_dict, book, chap, text, verse, verse)
+            ensure_existence(ms_dict, book, chap, '', verse, verse)
             add_verse(book, chap, verse, text, page_num, ms_id, ms_dict, contents)
 
 # Make sure that a verse exists in a manuscript (with or without a transcription)
@@ -782,7 +809,6 @@ def regex_co_range(important_rows, master_range):
     for add in add_these:
         # Split at book or split at category (eapr)
         ranges = re.split(r'(e|a|p|r)|(\d?[A-Z][a-z]*)', add)[1::4]
-        # TODO make sure that ranges has what I want (it might capture both groups????)
         for b_range in ranges:
             # Categories
             if b_range == 'a':
@@ -797,7 +823,7 @@ def regex_co_range(important_rows, master_range):
                 master_range.extend(add_several_books(27, 27))
             
             # Individual books
-            else:
+            elif b_range != '':
                 bk = books[b_range]
                 master_range.extend(add_several_books(bk, bk))
 
