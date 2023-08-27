@@ -44,7 +44,9 @@ books = {
 }
 
 # Structure containing the number of verses in each chapter
-# #NOTE 3 John has 15 here but 14 in the TR, and 2 Cor 13 has 13 here but 14 in the TR
+# NOTE 3 John has 15 here but 14 in the TR
+# NOTE 2 Cor 13 has 13 here but 14 in the TR
+# NOTE Rev 12 has 18 here but 17 in the TR
 chap_verses = [
     [25,23,17,25,48,34,29,34,38,42,30,50,58,36,39,28,27,35,30,34,46,46,39,51,46,75,66,20],
     [45,28,35,41,43,56,37,38,50,52,33,44,37,72,47,20],
@@ -72,7 +74,7 @@ chap_verses = [
     [13],
     [15],
     [25],
-    [20,29,22,11,14,17,17,13,21,11,19,17,18,20,8,21,18,24,21,15,27,21]
+    [20,29,22,11,14,17,17,13,21,11,19,18,18,20,8,21,18,24,21,15,27,21]
 ]
 
 # Get the number of verses in a given chapter in a given book
@@ -99,7 +101,8 @@ def gather_data():
     print()
     
     '''get_cntr_mss(driver, dup_dict, all_mss, 1, 2, ed_mss)
-    # ID 90056 (T789) appears to be a talisman containing John 11 and I indexed and transcribed it
+    # ID 90056 (T789) appears to be a ms containing John 11 and I indexed and transcribed it
+    # ID 9992222 (T279) is another weird one off ms
     # Save dictionaries
     with open(f'dup_dict.pkl','wb') as f:
         pickle.dump(dup_dict, f)
@@ -218,174 +221,182 @@ def get_mss(driver, type, lower_bound, upper_bound, dup_dict, all_mss, ed_mss):
 
     # For each ms, get its info, and then click on the link and do stuff there
     for ms in mss:
-        ms_dict = {'transcription?' : False}
-        info = ms.find_elements(By.TAG_NAME, "td")
-        id = int(info[0].text)
-        if id >= lower_bound and id <= upper_bound:
-            # The regex is to handle Weird things in these names: L969DEL, L970DEL, l 2523, l 2525, l 2526, l 2527, l 2528, l 2529, l 2530, l 2531
-            entry = re.sub('l ', 'L', re.sub('DEL', '', info[1].accessible_name.strip()))
-            ms_name = entry.split(' ')[0]
-            print(ms_name)
-            sleep(1)
-            
-            # For linking duplicates or combined mss:
-            # The format is either "Removed; Combined; See: MSNUM"
-            #                   or "Removed; Duplicate; See: MSNUM"
-            #                   or "Removed; See: CURRMSNUM"
-            # Exception cases that are fine: 2560, 2892, L242, L652, L1353, L1398 but they still follow enough of the pattern to regex them consistently
-            # NOTE even for duplicates, this still does normal page parsing and such. The correct ms is linked to it later
-            if re.search('Removed', entry) is not None:
-                if re.search('Combined', entry) is not None:
-                    source_ms = re.search(r'(L|P)?\d+', re.search(r'See: (L|P)?\d+', entry).group()).group()
-                    dup_type = 'Combined'
-                elif re.search('Duplicate', entry) is not None:
-                    source_ms = re.search(r'(L|P|T|O)?(s1-)?\d+', re.search(r'See: (L|P|T|O)?(s1-)?\d+', entry).group()).group()
-                    dup_type = 'Duplicate'
-                else:
-                    pass # for the few extraneous ones that are self-referential
-
-                # Other exception cases to manually handle: L355, L1353 (the INTF has weird things here)
-                if re.match('L355', entry):
-                    source_ms = '0303'
-                if re.match('L1353', entry):
-                    source_ms = 'L962'
+        try:
+            ms_dict = {'transcription?' : False}
+            info = ms.find_elements(By.TAG_NAME, "td")
+            id = int(info[0].text)
+            if id >= lower_bound and id <= upper_bound:
+                # The regex is to handle Weird things in these names: L969DEL, L970DEL, l 2523, l 2525, l 2526, l 2527, l 2528, l 2529, l 2530, l 2531
+                entry = re.sub('l ', 'L', re.sub('DEL', '', info[1].accessible_name.strip()))
+                ms_name = entry.split(' ')[0]
+                print(ms_name)
+                sleep(1)
                 
-                if dup_dict.get('forward').get(source_ms) is None:
-                    dup_dict.get('forward').update({source_ms : []})
-                curr_dups_at_ms = dup_dict.get('forward').get(source_ms)
-                curr_dups_at_ms.extend([(ms_name, dup_type)])
-                dup_dict.get('forward').update({source_ms : curr_dups_at_ms})
-                dup_dict.get('backward').update({ms_name : source_ms})
+                # For linking duplicates or combined mss:
+                # The format is either "Removed; Combined; See: MSNUM"
+                #                   or "Removed; Duplicate; See: MSNUM"
+                #                   or "Removed; See: CURRMSNUM"
+                # Exception cases that are fine: 2560, 2892, L242, L652, L1353, L1398 but they still follow enough of the pattern to regex them consistently
+                # NOTE even for duplicates, this still does normal page parsing and such. The correct ms is linked to it later
+                if re.search('Removed', entry) is not None:
+                    if re.search('Combined', entry) is not None:
+                        source_ms = re.search(r'(L|P)?\d+', re.search(r'See: (L|P)?\d+', entry).group()).group()
+                        dup_type = 'Combined'
+                    elif re.search('Duplicate', entry) is not None:
+                        source_ms = re.search(r'(L|P|T|O)?(s1-)?\d+', re.search(r'See: (L|P|T|O)?(s1-)?\d+', entry).group()).group()
+                        dup_type = 'Duplicate'
+                    else:
+                        pass # for the few extraneous ones that are self-referential
 
-            # Click ms to get its contents, get contents, get pages, get transcript (drill down)
-            info[1].click()
-            sleep(1)
-            driver.switch_to.default_content()
-            driver.switch_to.frame(info_frame)
-            info = driver.find_element(value="content")
-            contents = info.find_elements(By.TAG_NAME, "tr")
-            while len(contents) < 10:
+                    # Other exception cases to manually handle: L355, L1353 (the INTF has weird things here)
+                    if re.match('L355', entry):
+                        source_ms = '0303'
+                    if re.match('L1353', entry):
+                        source_ms = 'L962'
+                    
+                    if dup_dict.get('forward').get(source_ms) is None:
+                        dup_dict.get('forward').update({source_ms : []})
+                    curr_dups_at_ms = dup_dict.get('forward').get(source_ms)
+                    curr_dups_at_ms.extend([(ms_name, dup_type)])
+                    dup_dict.get('forward').update({source_ms : curr_dups_at_ms})
+                    dup_dict.get('backward').update({ms_name : source_ms})
+
+                # Click ms to get its contents, get contents, get pages, get transcript (drill down)
+                info[1].click()
+                sleep(1)
+                driver.switch_to.default_content()
+                driver.switch_to.frame(info_frame)
+                info = driver.find_element(value="content")
                 contents = info.find_elements(By.TAG_NAME, "tr")
-            sleep(0.2)
-            stale = True
-            while stale:
-                try:
-                    toprow = contents[0]
-                    ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
-                    linkspot = ths[0]
-                    link = linkspot.find_elements(By.TAG_NAME, "a")[0]
-                    
-                    important_rows = {'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
-                    gmo = 0
-                    c = 0
-                    bc = 0
-                    for row in contents:
-                        # Get biblical content info
-                        if row.text[:7] == "Content":
-                            important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                            c += 1
-                        elif row.text[:30] == "General Manuscript Observation":
-                            important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
-                            gmo += 1
-                        elif row.text.__contains__('Biblical Content'):
-                            important_rows.get('BC').update({bc : re.sub('Biblical Content ?', '', row.text)})
-                            bc += 1
-
-                        # Get year info
-                        if row.text.__contains__('Origin Year Early'):
-                            ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
-                        if row.text.__contains__('Origin Year Late'):
-                            ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
-
-                        # Get Edition info to compare Talismans and Ostraca with CNTR things:
-                        if row.text.__contains__('Edition'):
-                            ed_mss.update({re.sub('(Edition ?)|([^A-Za-z0-9])', '', row.text) : ms_name})
-
-                    # Annoying spaghetti solution to a problem caused by inconsistencies in the format of GMO in 070
-                    if ms_name == '070':
-                        # Just reset GMO to be the correct contents manually
-                        important_rows.update({'GMO' : {0 : 'L 3,19-30; 8,13-19.55-9,9; 9,9-17; 10,21-30; 10,30-39; 10,40-11,6; 11,24-42; 12,5-14; 12,15-13,32; 16,4-12; 21,30-22,2; 22,54-65; 23,4-24,26; J 3,23-32; 5,22-42; 7,3-12; 8,13-22; 8,33-42; 8,42-9,39; 11,48-56; 12,27-36.46-13,4'}})
-                    
-                    master_range = []
-
-                    # Get range from GMO (catch errors)
+                while len(contents) < 10:
+                    contents = info.find_elements(By.TAG_NAME, "tr")
+                sleep(0.2)
+                stale = True
+                while stale:
                     try:
-                        regex_gmo_range(important_rows, master_range, already_formatted=ms_name.__contains__('Os'))
-                        # If it fails, clear it out and continue on (address later if needed)
-                    except Exception as e:
-                        with open('errlog.txt','a') as f:
-                            f.write(f'Regex GMO failed in {ms_name} with {e} in: \n\t{important_rows.get("GMO")}\n\n\n')
-                            print_exc(file=f)
+                        # Get its clickable link
+                        toprow = contents[0]
+                        ths = toprow.find_elements(By.CLASS_NAME, "fieldValue")
+                        linkspot = ths[0]
+                        link = linkspot.find_elements(By.TAG_NAME, "a")[0]
+                        
+                        important_rows = {'Content' : dict(), 'GMO' : dict(), 'BC' : dict()}
+                        gmo = 0
+                        c = 0
+                        bc = 0
+                        for row in contents:
+                            # Get biblical content info
+                            if row.text[:7] == "Content":
+                                important_rows.get('Content').update({c : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                                c += 1
+                            elif row.text[:30] == "General Manuscript Observation":
+                                important_rows.get('GMO').update({gmo : row.find_elements(By.TAG_NAME, 'td')[0].accessible_name})
+                                gmo += 1
+                            elif row.text.__contains__('Biblical Content'):
+                                important_rows.get('BC').update({bc : re.sub('Biblical Content ?', '', row.text)})
+                                bc += 1
+
+                            # Get year info
+                            if row.text.__contains__('Origin Year Early'):
+                                ms_dict.update({'yr_start' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+                            if row.text.__contains__('Origin Year Late'):
+                                ms_dict.update({'yr_end' : max(0, int(row.find_elements(By.TAG_NAME, 'td')[0].accessible_name))})
+
+                            # Get Edition info to compare Talismans and Ostraca with CNTR things:
+                            if row.text.__contains__('Edition'):
+                                ed_mss.update({re.sub('(Edition ?)|([^A-Za-z0-9])', '', row.text) : ms_name})
+
+                        # Annoying spaghetti solution to a problem caused by inconsistencies in the format of GMO in 070
+                        if ms_name == '070':
+                            # Just reset GMO to be the correct contents manually
+                            important_rows.update({'GMO' : {0 : 'L 3,19-30; 8,13-19.55-9,9; 9,9-17; 10,21-30; 10,30-39; 10,40-11,6; 11,24-42; 12,5-14; 12,15-13,32; 16,4-12; 21,30-22,2; 22,54-65; 23,4-24,26; J 3,23-32; 5,22-42; 7,3-12; 8,13-22; 8,33-42; 8,42-9,39; 11,48-56; 12,27-36.46-13,4'}})
+                        
                         master_range = []
 
-                    # For ones that return nothing, try going through 'Content' or 'Content Overview' or 'Biblical Content'
-                    if len(master_range) == 0:
+                        # Get range from GMO (catch errors)
+                        try:
+                            regex_gmo_range(important_rows, master_range, already_formatted=ms_name.__contains__('Os'))
+                            # If it fails, clear it out and continue on (address later if needed)
+                        except Exception as e:
+                            with open('errlog.txt','a') as f:
+                                f.write(f'Regex GMO failed in {ms_name} with {e} in: \n\t{important_rows.get("GMO")}\n\n\n')
+                                print_exc(file=f)
+                            master_range = []
 
-                        # Lectionary contents getting ('Biblical Content')
-                        if ms_name[0] == 'L':
-                            # Spaghetti to handle a few early edge cases
-                            # NOTE, because of how confusing it is to record what lectionaries contain, this part will be inherently dubious
-                            if ms_name == 'L1604' or ms_name == 'L1043' or ms_name == 'L2210':
-                                # Do this to not mess up the contents on the few early lectionaries.
+                        # For ones that return nothing, try going through 'Content' or 'Content Overview' or 'Biblical Content'
+                        if len(master_range) == 0:
+
+                            # Lectionary contents getting ('Biblical Content')
+                            if ms_name[0] == 'L':
+                                # Spaghetti to handle a few early edge cases
+                                # NOTE, because of how confusing it is to record what lectionaries contain, this part will be inherently dubious
+                                if ms_name == 'L1604' or ms_name == 'L1043' or ms_name == 'L2210':
+                                    # Do this to not mess up the contents on the few early lectionaries.
+                                    pass
+                                elif ms_name == 'L1354':
+                                    # The INTF does not contain pages for L1354, so the contents will be hardcoded here
+                                    important_rows.update({'GMO' : {0: 'Mt 3; Mc 1'}})
+                                    regex_gmo_range(important_rows, master_range)
+                                else:
+                                    # Normal lectionary contents getting
+                                    regex_bc(important_rows.get('BC'), master_range)
+
+                            # Special case for 0212
+                            elif ms_name == '0212':
+                                # Just skip now because it will be gotten later in get_cntr_class
                                 pass
-                            elif ms_name == 'L1354':
-                                # The INTF does not contain pages for L1354, so the contents will be hardcoded here
-                                important_rows.update({'GMO' : {0: 'Mt 3; Mc 1'}})
-                                regex_gmo_range(important_rows, master_range)
+                            
+                            # Non-lectionary contents getting
                             else:
-                                # Normal lectionary contents getting
-                                regex_bc(important_rows.get('BC'), master_range)
+                                regex_co_range(important_rows, master_range)
 
-                        # Special case for 0212
-                        elif ms_name == '0212':
-                            # Just skip now because it will be gotten later in get_cntr_class
-                            pass
+                        # Update dictionary for the manuscript with the range of contents
+                        add_range(master_range, ms_dict)
+
+                        # Click link, get page contents and transcription, and return control
+                        link.click()
+                        stale = False
+
+                        # Get pages and return control to here
+                        try:
+                            get_pages(driver, ms_dict)
+                        except Exception as e:
+                            with open('errlog.txt','a') as f:
+                                f.write(f'Error during get_pages in {ms_name}: {e}\n')
+                                print_exc(file=f)
                         
-                        # Non-lectionary contents getting
-                        else:
-                            regex_co_range(important_rows, master_range)
+                        driver.switch_to.default_content()
+                        driver.switch_to.frame(list_frame)
+                    
+                    # Try reloading if there is a stale element
+                    except Stale as e:
+                        contents = info.find_elements(By.TAG_NAME, "tr")
 
-                    # Update dictionary for the manuscript with the range of contents
-                    add_range(master_range, ms_dict)
-
-                    # Click link, get page contents and transcription, and return control
-                    link.click()
-                    stale = False
-
-                    # Get pages and return control to here
-                    try:
-                        get_pages(driver, ms_dict)
+                    # Log other errors and move on
                     except Exception as e:
+                        print(f'Error in {ms_name} (logged)')
                         with open('errlog.txt','a') as f:
-                            f.write(f'Error during get_pages in {ms_name}: {e}\n')
+                            f.write(f'An error occurred at {ms_name}: {e}\n')
                             print_exc(file=f)
-                    driver.switch_to.default_content()
-                    driver.switch_to.frame(list_frame)
-                
-                # Try reloading if there is a stale element
-                except Stale as e:
-                    contents = info.find_elements(By.TAG_NAME, "tr")
+                        stale = False
 
-                # Log other errors and move on
-                except Exception as e:
-                    print(f'Error in {ms_name} (logged)')
-                    with open('errlog.txt','a') as f:
-                        f.write(f'An error occurred at {ms_name}: {e}\n')
-                        print_exc(file=f)
-                    stale = False
-                    for window in driver.window_handles:
-                        if window != driver.window_handles[0]:
-                            driver.switch_to.window(window)
-                            driver.close()
-                    driver.switch_to.default_content()
-                    driver.switch_to.frame(list_frame)
+                        # This should close all other windows and return control back to the first one (in theory)
+                        reset_driver(driver)
 
-            # Save each dictionary so that progress is saved
-            '''with open(f'mss/{ms_name}.pkl','wb') as f:
-                pickle.dump(ms_dict, f)'''
-            # Update master dictionary
-            all_mss.update({ms_name : ms_dict})
-            sleep(1)
+                # Save each dictionary so that progress is saved
+                '''with open(f'mss/{ms_name}.pkl','wb') as f:
+                    pickle.dump(ms_dict, f)'''
+                # Update master dictionary
+                all_mss.update({ms_name : ms_dict})
+                sleep(1)
+        
+        # Catch the highest level Exception if another failure happened
+        except Exception as e:
+            print(f'TOP LEVEL error in {ms_name}')
+            with open('errlog.txt','a') as f:
+                f.write(f'TOP LEVEL error occurred in {ms_name}: {e}\n')
+                print_exc(file=f)
+            reset_driver(driver)
 
     print(f'Finished getting all manuscripts of type {type}')
 
@@ -418,8 +429,8 @@ def get_pages(driver, ms_dict):
             print(f'\t{page_num}')
             contains = page.find_elements(By.CLASS_NAME, "bibContDisp")[0]
             # Remove things like "inscriptio/subscription" or "commentary" from the thing
-            contents = re.sub(r'\d? ?[A-Za-z]+ ?(inscriptio|subscriptio)[^;]*;?', '', contains.text)
-            contents = re.sub(r'( |\n|\t)*\+?( |\n|\t)*Commentary[^;]*;?', '', contents)
+            contents = re.sub(r';? *\d? *[A-Za-z]+ *(inscriptio|subscriptio)[^;]*;?', '', contains.text)
+            contents = re.sub(r';?( |\n|\t)*\+?;?( |\n|\t)*Commentary[^;]*;?', '', contents)
             if contents != "No Index Content" and contents != '':
                 try:
                     get_trans(driver, ms_id, page_num, contents, ms_dict)
@@ -458,67 +469,77 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
             except KeyError as e:
                 print(f'{s[0]} {s[1]} is not a valid NT verse (ignoring)')
 
-    if contents.__contains__("Rev") is False:
-        apoc_flag = ""
-    else:
-        apoc_flag = "&userName=Apokalypse%20Edition"
-    # TODO IGNTP flag??
-    # TODO if a flag has nothing, try the main page
+    apoc_flag = "" if not contents.__contains__("Rev") else "&userName=Apokalypse%20Edition"
 
-    page = f'https://ntvmr.uni-muenster.de/community/vmr/api/transcript/get/?docID={ms_id}&pageID={page_num}&format=html{apoc_flag}'
-    driver.execute_script(f'window.open("{page}")')
-    driver.switch_to.window(driver.window_handles[2])
-    sleep(1)
+    # Turn the page loading and initial parsing into a function so that it can be called again if needed
+    def load_page(driver, ms_id, page_num, apoc_flag):
+        # Load the page and have the driver control the correct window
+        page = f'https://ntvmr.uni-muenster.de/community/vmr/api/transcript/get/?docID={ms_id}&pageID={page_num}&format=html{apoc_flag}'
+        # TODO make this an AJAX request
+        driver.execute_script(f'window.open("{page}")')
+        driver.switch_to.window(driver.window_handles[2])
+        sleep(1)
     
-    #Remove unwanted extraneous parts with Javascript
-    driver.execute_script('''
-        //remove the line numbers, column numbers, folio numbers, and lacuna indicators that contain numbers
-        document.querySelectorAll(".linenumber").forEach(e => e.remove());
-        document.querySelectorAll(".lac").forEach(e => e.remove());
-        document.querySelectorAll(".columnBreak").forEach(e => e.remove());
-        document.querySelectorAll(".folioBreak").forEach(e => e.remove());
+        #Remove unwanted extraneous parts with Javascript
+        driver.execute_script('''
+            //remove the line numbers, column numbers, folio numbers, and lacuna indicators that contain numbers
+            document.querySelectorAll(".linenumber").forEach(e => e.remove());
+            document.querySelectorAll(".lac").forEach(e => e.remove());
+            document.querySelectorAll(".columnBreak").forEach(e => e.remove());
+            document.querySelectorAll(".folioBreak").forEach(e => e.remove());
 
-        //put supplied text in brackets and solve the issue of line breaks in the middle of words
-        document.querySelectorAll(".supplied").forEach(e => {e.innerText = "[" + e.innerText + "]"});
-        document.querySelectorAll(".nobreak").forEach(e => e.innerText = "~~");
+            //put supplied text in brackets and solve the issue of line breaks in the middle of words
+            document.querySelectorAll(".supplied").forEach(e => {e.innerText = "[" + e.innerText + "]"});
+            document.querySelectorAll(".nobreak").forEach(e => e.innerText = "~~");
 
-        //remove corrections (ideally put in parens, but not yet)
-        document.querySelectorAll(".readings").forEach(e => {
-            e.remove()
-            //correctors = e.innerText.match(/corrector\d?/g);
-            //let corrections = e.innerText.replace(/^\*/,'').split(/corrector\d?/);
-            //corrections.reverse();
-            //let correctionstr = 'Firsthand: ' + corrections.pop();
-            //corrections.reverse();
-            //let idx = 0;
-            //for (let correction of corrections) {
-            //	correctionstr += ", " + correctors[idx][0] + ": " + correction
-            //}
-            //e.innerText = " (" + correctionstr + ") "
-        });
+            //remove corrections (ideally put in parens, but not yet)
+            document.querySelectorAll(".readings").forEach(e => {
+                e.remove()
+                //correctors = e.innerText.match(/corrector\d?/g);
+                //let corrections = e.innerText.replace(/^\*/,'').split(/corrector\d?/);
+                //corrections.reverse();
+                //let correctionstr = 'Firsthand: ' + corrections.pop();
+                //corrections.reverse();
+                //let idx = 0;
+                //for (let correction of corrections) {
+                //	correctionstr += ", " + correctors[idx][0] + ": " + correction
+                //}
+                //e.innerText = " (" + correctionstr + ") "
+            });
 
-        //remove notes and random other things that clutter up the original page and mess this up otherwise
-        document.querySelectorAll(".note").forEach(e => e.remove());
-        document.querySelectorAll(".note-marker").forEach(e => e.remove());
-        document.querySelectorAll(".app").forEach(e => e.remove());
-        document.querySelectorAll(".app-rdgs").forEach(e => e.remove());
-        document.querySelectorAll(".verse_number").forEach(e => e.remove());
+            //remove notes and random other things that clutter up the original page and mess this up otherwise
+            document.querySelectorAll(".note").forEach(e => e.remove());
+            document.querySelectorAll(".note-marker").forEach(e => e.remove());
+            document.querySelectorAll(".app").forEach(e => e.remove());
+            document.querySelectorAll(".app-rdgs").forEach(e => e.remove());
+            document.querySelectorAll(".verse_number").forEach(e => e.remove());
+            
+            //Put the full verse reference before each verse using the DOM
+            document.querySelectorAll(".verse_marker").forEach(e => {
+                try {
+                    osisid = e.dataset.osisid.replace(/,/g, '.');
+                }
+                catch {
+                    lectid = e.dataset.lectid.replace(/,/g, '.');
+                    lectid = lectid.replace(/ /g, '');
+                }
+                padChk = e.dataset.lectid === undefined ? osisid.match(/\./g) : lectid.match(/\./g);
+                zeroPad = padChk === null ? ".0.0" : padChk.length === 1 ? ".0" : "";
+                e.innerText = e.dataset.lectid === undefined ? osisid + zeroPad : lectid + zeroPad;
+                e.style.display = 'Block';
+            });
+        ''')
         
-        //Put the full verse reference before each verse using the DOM
-        document.querySelectorAll(".verse_marker").forEach(e => {
-            try {
-                osisid = e.dataset.osisid.replace(/,/g, '.');
-            }
-            catch {
-                lectid = e.dataset.lectid.replace(/,/g, '.');
-                lectid = lectid.replace(/ /g, '');
-            }
-            padChk = e.dataset.lectid === undefined ? osisid.match(/\./g) : lectid.match(/\./g);
-            zeroPad = padChk === null ? ".0.0" : padChk.length === 1 ? ".0" : "";
-            e.innerText = e.dataset.lectid === undefined ? osisid + zeroPad : lectid + zeroPad;
-            e.style.display = 'Block';
-        });
-    ''')
+    # Call the function the first time
+    load_page(driver, ms_id, page_num, apoc_flag)
+
+    # Check to make sure that there is content on the page IF a flag was used (if no content exists, try the main INTF transcription)
+    if apoc_flag:
+        body = driver.find_elements(By.TAG_NAME, "body")[0].get_attribute("innerText")
+        if body.__contains__("Internal Server Error") or body.__contains__("No Transcription Available"):
+            driver.close()
+            driver.switch_to.window(driver.window_handles[1])
+            load_page(driver, ms_id, page_num, "")
     
     sections = driver.find_elements(By.CLASS_NAME, "msstrans")
     #parse the verses and format them for insertion into database
@@ -543,7 +564,7 @@ def get_trans(driver, ms_id, page_num, contents, ms_dict):
             if v == '':
                 # This happens on page 1750 of 20001 (INTF's fault)
                 with open('errlog.txt','a') as ef:
-                    ef.write(f'Issues on page {page_num} of {ms_id} (blank element in list: {vv})\n')
+                    ef.write(f'Issues on page {page_num} of {ms_id} (blank element in list)\n')
                     print_exc(file=ef)
                 break
 
@@ -870,6 +891,15 @@ def add_several_books(start_book, stop_book):
     for bk in range(start_book, stop_book+1):
         b_range.extend(get_bible_range(bk, 1, 1, get_chap_ct(bk), get_v_ct(bk, get_chap_ct(bk)), is_num=True))
     return b_range
+
+# This closes all other windows except the main one (used in get_mss to recover after exception catching)
+def reset_driver(driver):
+    for window in driver.window_handles:
+        if window != driver.window_handles[0]:
+            driver.switch_to.window(window)
+            driver.close()
+    driver.switch_to.default_content()
+    driver.switch_to.frame(list_frame)
 
 if __name__ == "__main__":
     gather_data()
